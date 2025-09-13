@@ -1,12 +1,16 @@
 import streamlit as st
 import joblib
 import re
+import wave
+import json
+import soundfile as sf
+from vosk import Model, KaldiRecognizer
 
-# Load model + vectorizer
+# --- Load model + vectorizer ---
 model = joblib.load("models/text_model.pkl")
 vectorizer = joblib.load("models/tfidf_vectorizer.pkl")
 
-# Risky keywords (extend this list as needed)
+# Risky keywords
 risky_keywords = ["bank", "account", "verify", "locked", "password",
                   "urgent", "winner", "lottery", "click", "payment",
                   "prize", "free", "offer", "limited", "risk", "security",
@@ -14,44 +18,81 @@ risky_keywords = ["bank", "account", "verify", "locked", "password",
                   "transaction", "access", "details", "information",
                   "identity", "social", "security", "ssn", "credit", "debit"]
 
-st.title("📧 Digital Arrest Detector (Hybrid Scam Detection)")
-st.write("This tool uses **ML + Keyword Matching** for stronger scam detection.")
+# --- Hybrid Detection Function ---
+def detect_message(text):
+    X_input = vectorizer.transform([text])
+    scam_prob = model.predict_proba(X_input)[0][1]
+    found_keywords = [kw for kw in risky_keywords if re.search(rf"\b{kw}\b", text, re.IGNORECASE)]
+    keyword_score = len(found_keywords)
 
-# Input box
-user_input = st.text_area("Paste an email or SMS text here:")
-
-if st.button("Analyze"):
-    if user_input.strip() == "":
-        st.warning("Please enter some text to analyze.")
+    if scam_prob > 0.3 or keyword_score >= 2:
+        label = "🚨 Likely Scam"
     else:
-        # Step 1: ML Model Prediction
-        X_input = vectorizer.transform([user_input])
-        scam_prob = model.predict_proba(X_input)[0][1]
+        label = "✅ Likely Safe"
 
-        # Step 2: Keyword Matching
-        found_keywords = [kw for kw in risky_keywords if re.search(rf"\b{kw}\b", user_input, re.IGNORECASE)]
-        keyword_score = len(found_keywords)
+    return label, scam_prob, found_keywords
 
-        # Step 3: Hybrid Decision Logic
-        if scam_prob > 0.3 or keyword_score >= 2:
-            label = "🚨 Likely Scam"
-        else:
-            label = "✅ Likely Safe"
+# --- Speech-to-Text with Vosk ---
+def transcribe_audio(audio_file, lang="en-in"):
+    model_path = f"models/vosk-model-small-{lang}"
+    model = Model(model_path)
 
-        # Output results
-        st.subheader("🔍 Analysis Result")
-        st.write(f"**Classification:** {label}")
-        st.write(f"**ML Scam Probability:** {scam_prob:.2f}")
-        st.write(f"**Risky Keywords Found:** {', '.join(found_keywords) if found_keywords else 'None'}")
+    # Convert to wav if not already
+    data, samplerate = sf.read(audio_file)
+    if len(data.shape) > 1:  # stereo → mono
+        data = data.mean(axis=1)
+    sf.write("temp.wav", data, samplerate)
 
-        # Highlight risky words in text
-        highlighted_text = user_input
-        for kw in found_keywords:
-            highlighted_text = re.sub(
-                rf"(?i)\b({kw})\b",
-                r"**[\1]**",
-                highlighted_text
-            )
+    wf = wave.open("temp.wav", "rb")
+    rec = KaldiRecognizer(model, wf.getframerate())
+    rec.SetWords(True)
 
-        st.subheader("📄 Highlighted Message")
-        st.markdown(highlighted_text)
+    result_text = ""
+    while True:
+        data = wf.readframes(4000)
+        if len(data) == 0:
+            break
+        if rec.AcceptWaveform(data):
+            res = json.loads(rec.Result())
+            result_text += " " + res.get("text", "")
+    res = json.loads(rec.FinalResult())
+    result_text += " " + res.get("text", "")
+    return result_text.strip()
+
+# --- Streamlit UI ---
+st.title("📞 Digital Arrest Detector (Calls + Text)")
+st.write("Now supports **Text + Audio (EN-IN, HI, GU)** analysis.")
+
+# Tabs: Text / Audio
+tab1, tab2 = st.tabs(["📝 Text Analysis", "🎙 Audio Call Analysis"])
+
+with tab1:
+    user_input = st.text_area("Paste text (SMS/Email/Chat) here:")
+    if st.button("Analyze Text"):
+        if user_input.strip():
+            label, scam_prob, keywords = detect_message(user_input)
+            st.subheader("🔍 Text Analysis Result")
+            st.write(f"**Classification:** {label}")
+            st.write(f"**ML Scam Probability:** {scam_prob:.2f}")
+            st.write(f"**Risky Keywords:** {', '.join(keywords) if keywords else 'None'}")
+
+with tab2:
+    uploaded_audio = st.file_uploader("Upload call recording (wav/mp3)", type=["wav", "mp3"])
+    lang_choice = st.selectbox("Select Language Model", ["en-in", "gu", "hi"])
+
+    if uploaded_audio and st.button("Analyze Audio"):
+        with st.spinner("Transcribing audio..."):
+            transcription = transcribe_audio(uploaded_audio, lang=lang_choice)
+        st.subheader("🗣 Transcribed Text")
+        st.write(transcription if transcription else "❌ No speech detected.")
+
+        if transcription:
+            label, scam_prob, keywords = detect_message(transcription)
+            st.subheader("🔍 Scam Analysis on Transcription")
+            st.write(f"**Classification:** {label}")
+            st.write(f"**ML Scam Probability:** {scam_prob:.2f}")
+            st.write(f"**Risky Keywords:** {', '.join(keywords) if keywords else 'None'}")
+
+            # --- Placeholder for deepfake detection ---
+            st.subheader("🤖 Deepfake Audio Detection")
+            st.info("⚠️ Placeholder: Deepfake voice detection model to be integrated here.")

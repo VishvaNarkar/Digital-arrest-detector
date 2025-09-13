@@ -1,0 +1,5 @@
+Small Gujarati model for Vosk
+
+WER
+
+%WER 20.49 [ 7446 / 36335, 715 ins, 1060 del, 5671 sub ] exp/chain/tdnn/decode_test_look_fast/wer_11_0.0
