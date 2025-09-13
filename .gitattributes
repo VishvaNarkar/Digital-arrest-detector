@@ -2,6 +2,7 @@
 * text=auto
 *.fst filter=lfs diff=lfs merge=lfs -text
 models/vosk-model-small-gu/graph/*.fst filter=lfs diff=lfs merge=lfs -text
-models/Deepfakes_detection_model.keras filter=lfs diff=lfs merge=lfs -text
+*.keras filter=lfs diff=lfs merge=lfs -text
 models/vosk-model-small-gu/graph/Gr.fst filter=lfs diff=lfs merge=lfs -text
 models/vosk-model-small-gu/graph/HCLr.fst filter=lfs diff=lfs merge=lfs -text
+models/Deepfakes_detection_model.keras filter=lfs diff=lfs merge=lfs -text
