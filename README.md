@@ -21,24 +21,11 @@ Built for real-time prevention, alerts, and awareness against modern cyber scams
   - Keras-based deepfake detection model (`Deepfakes_detection_model.keras`)
   - Classifies uploaded videos as **Likely Real / Deepfake**
 
-- **Reputation Analysis**
-  - Flags suspicious email domains and spoofed phone numbers
-  - Caller/sender trust scoring
-
-- **Feedback Learning**
-  - Users can report suspicious communications
-  - Models improve adaptively with community feedback
-
-- **Real-Time Prevention**
-  - Instant scam alerts
-  - Protective advice (e.g., *“Do not share OTP”*, *“Verify caller ID”*)
-  - Call blocking, email filtering, or warning overlays (planned)
-
 ---
 
 ## 🛠 Tech Stack
 
-- **Backend**: Python (Streamlit / FastAPI optional)
+- **Backend**: Python (Streamlit)
 - **ML/NLP**: Scikit-learn, TF-IDF, Keras
 - **Audio Processing**: Vosk, SoundFile, Wave
 - **Video Processing**: OpenCV, TensorFlow/Keras
@@ -52,10 +39,10 @@ Built for real-time prevention, alerts, and awareness against modern cyber scams
 Digital-arrest-detector/
 │── app.py                # Main app (Streamlit UI)
 │── models/               # ML models (text, tfidf, deepfake, etc.)
-│── detectors.py          # Scam detection logic
-│── reputation.py         # Sender/Caller reputation checks
-│── feedback.py           # User feedback + adaptive learning
-│── blocklist.py          # Real-time prevention & blocking
+│── data/                 # Sample data for training
+│── train_text.py         # Script to train text scam detection model
+│── temp_video.mp4        # Example video file for deepfake detection
+│── temp.wav              # Example audio file for scam detection
 │── requirements.txt      # Dependencies
 │── README.md             # Project documentation
 ```
@@ -89,14 +76,12 @@ Digital-arrest-detector/
 
 - **Text Analysis** → Paste SMS/Email/Chat text to detect scams  
 - **Audio Analysis** → Upload call recording (wav/mp3) → Transcription + Scam detection  
-- **Video Analysis** → Upload video (mp4/avi) → Deepfake detection  
-- **Feedback Tab** → Report suspicious cases to improve model  
+- **Video Analysis** → Upload video (mp4/avi) → Deepfake detection   
 
 ---
 
 ## 📌 Future Roadmap
 
-- ✅ Add deepfake detection (video)  
 - 🔲 Integrate real-time call/email blocking  
 - 🔲 Advanced multi-language NLP models  
 - 🔲 Deploy full-stack version (FastAPI + React/Vue)  
