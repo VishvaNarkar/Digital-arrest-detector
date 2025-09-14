@@ -26,13 +26,29 @@ deepfake_model = tf.keras.models.load_model("models/Deepfakes_detection_model.ke
 # Risky keywords for rule-based check
 # -------------------------------
 risky_keywords = [
+    # English
     "bank", "account", "verify", "locked", "password",
     "urgent", "winner", "lottery", "click", "payment",
     "prize", "free", "offer", "limited", "risk", "security",
     "immediately", "suspend", "alert", "confirm",
     "transaction", "access", "details", "information",
-    "identity", "social", "security", "ssn", "credit", "debit",
-    "otp", "pin", "cvv", "scam", "fraud", "fake"
+    "identity", "social", "security", "credit", "debit",
+    "otp", "pin", "cvv", "scam", "fraud", "fake",
+    # Hindi
+    "बैंक", "खाता", "पासवर्ड", "लॉटरी", "इनाम", "धोखा", "फर्जी", "सुरक्षा", 
+    "तुरंत", "क्लिक", "पुष्टि", "लॉक", "अकाउंट", "वेरिफाई", "विनर", "पेमेन्ट", 
+    "फ्री", "ऑफर", "सीमित", "जोखिम", "इमरजेंसी", "सस्पेंड", "अलर्ट", "लेनदेन", 
+    "एक्सेस", "जानकारी", "पहचान", "सोशल", "एसएसएन", "क्रेडिट", "डेबिट", 
+    "ओटीपी", "पिन", "सीवीवी", "स्कैम", "फ्रॉड", "नकली", "आधार",
+    "धोखाधड़ी", "फर्जीवाड़ा", "सावधान", "संदेह", "सुरक्षित", "जालसाजी",
+    "संदेश", "संपर्क", "फोन", "ईमेल", "संदेहास्पद", "सावधानी", "धोखेबाज़ी", 
+    "फिशिंग", "हैकिंग", "साइबर",
+    # Gujarati
+    "બેંક", "ખાતા", "પાસવર્ડ", "લોટરી", "ઇનામ", "ઠગ", "ફેક", "સુરક્ષા", 
+    "તાત્કાલિક", "ક્લિક", "પુષ્ટિ", "લોક", "એકાઉન્ટ", "વેરિફાઈ", "વિનર", 
+    "પેમેન્ટ", "ફ્રી", "ઓફર", "મર્યાદિત", "જોખમ", "તાત્કાલિક", "સસ્પેન્ડ", 
+    "અલર્ટ", "ટ્રાન્ઝેક્શન", "એક્સેસ", "માહિતી", "ઓળખ", "સોશિયલ", "એસએસએન", 
+    "ક્રેડિટ", "ડેબિટ", "ઓટિપિ", "પિન", "સિવિવી", "ઠગાઈ", "ફ્રોડ", "નકલી"
 ]
 
 # -------------------------------
@@ -338,7 +354,7 @@ st.sidebar.markdown(
             <div class="stat-label">Accuracy</div>
         </div>
         <div class="stat-item">
-            <div class="stat-value">36</div>
+            <div class="stat-value">90+</div>
             <div class="stat-label">Keywords</div>
         </div>
         <div class="stat-item">
@@ -364,7 +380,7 @@ st.sidebar.info("""
 st.markdown(
     """
     <div class="main-header">
-        <h1 class="main-title">Multi-Channel Digital Arrest & Fraud Scam Detection</h1>
+        <h1 class="main-title">FraudShield AI</h1>
         <p class="subtitle">Advanced AI-powered detection for text, audio, and video content with multi-language support</p>
     </div>
     """, 
