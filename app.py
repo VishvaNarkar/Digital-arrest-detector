@@ -8,97 +8,137 @@ import cv2
 import numpy as np
 import tensorflow as tf
 from vosk import Model, KaldiRecognizer
+from pathlib import Path
 
-# -------------------------------
+# ============================
+# Paths
+# ============================
+MODEL_DIR = Path("models")
+TEXT_MODEL_PATH = MODEL_DIR / "text_model.pkl"
+VECTORIZER_PATH = MODEL_DIR / "tfidf_vectorizer.pkl"
+DEEPFAKE_MODEL_PATH = MODEL_DIR / "Deepfakes_detection_model.keras"
+VOSK_BASE_PATH = MODEL_DIR
+
+
+# ============================
 # Load Models
-# -------------------------------
-# Text classifier
-model = joblib.load("models/text_model.pkl")
-vectorizer = joblib.load("models/tfidf_vectorizer.pkl")
+# ============================
+def load_text_models():
+    """Load text classification model and vectorizer."""
+    try:
+        model = joblib.load(TEXT_MODEL_PATH)
+        vectorizer = joblib.load(VECTORIZER_PATH)
+        return model, vectorizer
+    except Exception as e:
+        st.error(f"❌ Failed to load text models: {e}")
+        return None, None
 
-# Audio transcription
-vosk_base_path = "models"
 
-# Video deepfake model (Keras)
-deepfake_model = tf.keras.models.load_model("models/Deepfakes_detection_model.keras")
+def load_deepfake_model():
+    """Load deepfake detection model safely."""
+    try:
+        model = tf.keras.models.load_model(DEEPFAKE_MODEL_PATH, compile=False)
+        return model
+    except Exception as e:
+        st.error(f"❌ Failed to load deepfake model: {e}")
+        return None
 
-# -------------------------------
-# Risky keywords for rule-based check
-# -------------------------------
-risky_keywords = [
+
+text_model, vectorizer = load_text_models()
+deepfake_model = load_deepfake_model()
+
+
+# ============================
+# Risky keywords
+# ============================
+RISKY_KEYWORDS = [
     # English
-    "bank", "account", "verify", "locked", "password",
-    "urgent", "winner", "lottery", "click", "payment",
-    "prize", "free", "offer", "limited", "risk", "security",
-    "immediately", "suspend", "alert", "confirm",
-    "transaction", "access", "details", "information",
-    "identity", "social", "security", "credit", "debit",
-    "otp", "pin", "cvv", "scam", "fraud", "fake",
+    "bank", "account", "verify", "locked", "password", "urgent", "winner",
+    "lottery", "click", "payment", "prize", "free", "offer", "limited",
+    "risk", "security", "immediately", "suspend", "alert", "confirm",
+    "transaction", "access", "details", "information", "identity",
+    "social", "security", "credit", "debit", "otp", "pin", "cvv",
+    "scam", "fraud", "fake",
     # Hindi
-    "बैंक", "खाता", "पासवर्ड", "लॉटरी", "इनाम", "धोखा", "फर्जी", "सुरक्षा", 
-    "तुरंत", "क्लिक", "पुष्टि", "लॉक", "अकाउंट", "वेरिफाई", "विनर", "पेमेन्ट", 
-    "फ्री", "ऑफर", "सीमित", "जोखिम", "इमरजेंसी", "सस्पेंड", "अलर्ट", "लेनदेन", 
-    "एक्सेस", "जानकारी", "पहचान", "सोशल", "एसएसएन", "क्रेडिट", "डेबिट", 
-    "ओटीपी", "पिन", "सीवीवी", "स्कैम", "फ्रॉड", "नकली", "आधार",
-    "धोखाधड़ी", "फर्जीवाड़ा", "सावधान", "संदेह", "सुरक्षित", "जालसाजी",
-    "संदेश", "संपर्क", "फोन", "ईमेल", "संदेहास्पद", "सावधानी", "धोखेबाज़ी", 
-    "फिशिंग", "हैकिंग", "साइबर",
+    "बैंक", "खाता", "पासवर्ड", "लॉटरी", "इनाम", "धोखा", "फर्जी", "सुरक्षा",
+    "तुरंत", "क्लिक", "पुष्टि", "लॉक", "अकाउंट", "वेरिफाई", "विनर", "पेमेन्ट",
+    "फ्री", "ऑफर", "सीमित", "जोखिम", "इमरजेंसी", "सस्पेंड", "अलर्ट", "लेनदेन",
+    "एक्सेस", "जानकारी", "पहचान", "सोशल", "एसएसएन", "क्रेडिट", "डेबिट",
+    "ओटीपी", "पिन", "सीवीवी", "स्कैम", "फ्रॉड", "नकली", "आधार", "धोखाधड़ी",
+    "फर्जीवाड़ा", "सावधान", "संदेह", "सुरक्षित", "जालसाजी", "संदेश", "संपर्क",
+    "फोन", "ईमेल", "संदेहास्पद", "सावधानी", "धोखेबाज़ी", "फिशिंग", "हैकिंग", "साइबर",
     # Gujarati
-    "બેંક", "ખાતા", "પાસવર્ડ", "લોટરી", "ઇનામ", "ઠગ", "ફેક", "સુરક્ષા", 
-    "તાત્કાલિક", "ક્લિક", "પુષ્ટિ", "લોક", "એકાઉન્ટ", "વેરિફાઈ", "વિનર", 
-    "પેમેન્ટ", "ફ્રી", "ઓફર", "મર્યાદિત", "જોખમ", "તાત્કાલિક", "સસ્પેન્ડ", 
-    "અલર્ટ", "ટ્રાન્ઝેક્શન", "એક્સેસ", "માહિતી", "ઓળખ", "સોશિયલ", "એસએસએન", 
+    "બેંક", "ખાતા", "પાસવર્ડ", "લોટરી", "ઇનામ", "ઠગ", "ફેક", "સુરક્ષા",
+    "તાત્કાલિક", "ક્લિક", "પુષ્ટિ", "લોક", "એકાઉન્ટ", "વેરિફાઈ", "વિનર",
+    "પેમેન્ટ", "ફ્રી", "ઓફર", "મર્યાદિત", "જોખમ", "સસ્પેન્ડ", "અલર્ટ",
+    "ટ્રાન્ઝેક્શન", "એક્સેસ", "માહિતી", "ઓળખ", "સોશિયલ", "એસએસએન",
     "ક્રેડિટ", "ડેબિટ", "ઓટિપિ", "પિન", "સિવિવી", "ઠગાઈ", "ફ્રોડ", "નકલી"
 ]
 
-# -------------------------------
+
+# ============================
 # Hybrid Text Scam Detection
-# -------------------------------
-def detect_message(text):
+# ============================
+def detect_message(text: str):
+    """Detect scam likelihood in text using ML + keyword rules."""
+    if not text_model or not vectorizer:
+        return "❌ Model not loaded", 0.0, []
+
     X_input = vectorizer.transform([text])
-    scam_prob = model.predict_proba(X_input)[0][1]
-    found_keywords = [kw for kw in risky_keywords if re.search(rf"\b{kw}\b", text, re.IGNORECASE)]
+    scam_prob = text_model.predict_proba(X_input)[0][1]
+
+    found_keywords = [kw for kw in RISKY_KEYWORDS if re.search(rf"\b{kw}\b", text, re.IGNORECASE)]
     keyword_score = len(found_keywords)
 
-    if scam_prob > 0.3 or keyword_score >= 2:
-        label = "🚨 Likely Scam"
-    else:
-        label = "✅ Likely Safe"
+    label = "🚨 Likely Scam" if (scam_prob > 0.3 or keyword_score >= 2) else "✅ Likely Safe"
 
     return label, scam_prob, found_keywords
 
-# -------------------------------
-# Speech-to-Text with Vosk
-# -------------------------------
-def transcribe_audio(audio_file, lang="en-in"):
-    model_path = f"{vosk_base_path}/vosk-model-small-{lang}"
-    model = Model(model_path)
 
+# ============================
+# Speech-to-Text with Vosk
+# ============================
+def transcribe_audio(audio_file, lang="en-in"):
+    """Convert audio to text using Vosk."""
+    model_path = VOSK_BASE_PATH / f"vosk-model-small-{lang}"
+    if not model_path.exists():
+        st.error(f"❌ Missing Vosk model: {model_path}")
+        return ""
+
+    vosk_model = Model(str(model_path))
     data, samplerate = sf.read(audio_file)
+
     if len(data.shape) > 1:
         data = data.mean(axis=1)  # stereo → mono
+
     sf.write("temp.wav", data, samplerate)
 
-    wf = wave.open("temp.wav", "rb")
-    rec = KaldiRecognizer(model, wf.getframerate())
-    rec.SetWords(True)
+    with wave.open("temp.wav", "rb") as wf:
+        rec = KaldiRecognizer(vosk_model, wf.getframerate())
+        rec.SetWords(True)
 
-    result_text = ""
-    while True:
-        data = wf.readframes(4000)
-        if len(data) == 0:
-            break
-        if rec.AcceptWaveform(data):
-            res = json.loads(rec.Result())
-            result_text += " " + res.get("text", "")
-    res = json.loads(rec.FinalResult())
-    result_text += " " + res.get("text", "")
+        result_text = ""
+        while True:
+            chunk = wf.readframes(4000)
+            if len(chunk) == 0:
+                break
+            if rec.AcceptWaveform(chunk):
+                res = json.loads(rec.Result())
+                result_text += " " + res.get("text", "")
+        res = json.loads(rec.FinalResult())
+        result_text += " " + res.get("text", "")
+
     return result_text.strip()
 
-# -------------------------------
+
+# ============================
 # Deepfake Video Detection
-# -------------------------------
+# ============================
 def detect_deepfake(video_path, sample_frames=12):
+    """Detect whether a video is likely a deepfake."""
+    if not deepfake_model:
+        return "❌ Model not loaded", 0.0
+
     cap = cv2.VideoCapture(video_path)
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     frame_idxs = np.linspace(0, total_frames - 1, sample_frames, dtype=int)
@@ -113,7 +153,7 @@ def detect_deepfake(video_path, sample_frames=12):
         frame_resized = cv2.resize(frame_rgb, (224, 224)) / 255.0
         tensor = np.expand_dims(frame_resized, axis=0)
 
-        prob = deepfake_model.predict(tensor, verbose=0)[0][0]  # assuming output is [prob_fake]
+        prob = deepfake_model.predict(tensor, verbose=0)[0][0]  # assuming binary classifier
         preds.append(prob)
 
     cap.release()
