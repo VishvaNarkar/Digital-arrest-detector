@@ -88,17 +88,6 @@ Digital-arrest-detector/
 
 ---
 
-## 👨‍💻 Contributors
-
-- Team Name - **Traceroute Titans**   
-- Hackathon Team Members:
-- Ajaysinh Chauhan
-- Himesh Nayak
-- Yug Parmar
-- Vishv Narkar
-
----
-
 ## 📜 License
 
 MIT License – free to use and modify with attribution.
