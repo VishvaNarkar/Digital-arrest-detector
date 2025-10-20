@@ -57,15 +57,8 @@ Digital-arrest-detector/
    cd Digital-arrest-detector
    ```
 
-2. Create a virtual environment & install dependencies:
-   ```bash
-   python -m venv venv
-   source venv/bin/activate   # Mac/Linux
-   venv\Scripts\activate      # Windows
-   pip install -r requirements.txt
-   ```
 
-3. Run the app:
+2. Run the app:
    ```bash
    streamlit run app.py
    ```
