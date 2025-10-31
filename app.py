@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import joblib
 import re
 import wave
@@ -12,6 +13,8 @@ from pathlib import Path
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
 import nltk
 import re
+import unicodedata
+import math
 
 nltk.download("vader_lexicon")
 sent_analyzer = SentimentIntensityAnalyzer()
@@ -74,7 +77,19 @@ RISKY_KEYWORDS = {
     "click here": 1, "visit": 1, "link": 1, "download": 1,
     "risk-free": 1, "guarantee": 1, "trial": 1, "urgent response": 1,
     "act quickly": 1, "don't miss": 1, "final notice": 1, "last chance": 1,
-    "immediate action": 1, "secure": 1, "protect": 1, "verification": 1,
+    "immediate action": 1, "secure": 1, "protect": 1, "verification": 1, "block": 1,
+
+    # Indian English variants
+    "one time password": 3, "one-time password": 3, "atm pin": 3, "atm cvv": 3,
+    "social security number": 3, "bank account": 2, "account number": 2,
+    "verify account": 2, "secure your account now": 2, "transaction alert": 2,
+    "payment due": 2, "fund transfer": 2, "credit card": 2, "debit card": 2,
+    "lottery winner": 2, "claim prize": 2, "redeem reward": 2, "suspend account": 2,
+    "confirm identity": 2, "security alert": 2, "urgent update required": 2,
+    "immediate action required": 2, "phishing scam": 2, "fraud alert": 2,
+    "giveaway contest": 2, "reward points": 2, "free offer": 1, "click link": 1,
+    "suspicious activity": 1, "urgent response needed": 1, "final notice sent": 1,  
+    "last chance offer": 1, "immediate action needed": 1, "account verification": 1,
 
     # Hindi (Devanagari)
     "ओटीपी": 3, "पिन": 3, "सीवीवी": 3, "पासवर्ड": 3, "एसएसएन": 3,
@@ -91,7 +106,7 @@ RISKY_KEYWORDS = {
     "यहाँ क्लिक करें": 1, "भ्रमण करें": 1, "लिंक": 1, "डाउनलोड": 1,
     "जोखिम-मुक्त": 1, "गारंटी": 1, "परीक्षण": 1, "तत्काल प्रतिक्रिया": 1,
     "त्वरित कार्य करें": 1, "मिस न करें": 1, "अंतिम नोटिस": 1, "अंतिम मौका": 1,
-    "तत्काल कार्रवाई": 1, "सुरक्षित": 1, "सुरक्षा करें": 1, "सत्यापन": 1,
+    "तत्काल कार्रवाई": 1, "सुरक्षित": 1, "सुरक्षा करें": 1, "सत्यापन": 1, "ब्लॉक": 1,
 
     # Gujarati
     "ઓટિપિ": 3, "ઓટીપી": 3, "પાસવર્ડ": 3, "પિન": 3, "સિવિવી": 3, "એસએસએન": 3,
@@ -100,7 +115,7 @@ RISKY_KEYWORDS = {
     "ઇનામ": 2, "વિનર": 2, "લોટરી": 2, "દાવો": 2, "રિડિમ": 2, "સસ્પેન્ડ": 2,
     "પુષ્ટિ": 2, "અલર્ટ": 2, "તાત્કાલિક": 2, "તુરંત": 2, "તાત્કાલિક કાર્યવાહી": 2,
     "ઠગ": 2, "ફ્રોડ": 2, "ફિશિંગ": 2, "હેકિંગ": 2,
-    "ફ્રી": 1, "ઓફર": 1, "ક્લિક": 1, "જોખમ": 1, "સುರક્ષા": 1,
+    "ફ્રી": 1, "ઓફર": 1, "ક્લિક": 1, "જોખમ": 1, "સુરક્ષા": 1,
     "ઓળખ": 1, "સોશિયલ": 1, "પેસા": 1, "નકલી": 1, "શંકાસ્પદ": 1, "ચેતવણી": 1,
     "સાવચેતી": 1, "ખતરો": 1, "તાત્કાલિક અપડેટ": 1, "હવે કાર્ય કરો": 1,
     "વિશેષ": 1, "મહત્વપૂર્ણ": 1, "ધ્યાન આપો": 1, "સીમિત સમય": 1,
@@ -108,7 +123,7 @@ RISKY_KEYWORDS = {
     "અહીં ક્લિક કરો": 1, "વિઝિટ": 1, "લિંક": 1, "ડાઉનલોડ": 1,
     "જોખમ-મુક્ત": 1, "ગેરંટી": 1, "ટ્રાયલ": 1, "તાત્કાલિક પ્રતિસાદ": 1,
     "તાત્કાલિક કાર્ય કરો": 1, "મિસ ન કરો": 1, "અંતિમ સૂચના": 1, "છેલ્લો મોકો": 1,
-    "તાત્કાલિક કાર્યવાહી": 1, "સુરક્ષિત": 1, "સુરક્ષા કરો": 1, "સત્યાપન": 1,
+    "તાત્કાલિક કાર્યવાહી": 1, "સુરક્ષિત": 1, "સુરક્ષા કરો": 1, "સત્યાપન": 1, "બ્લોક": 1,
 }
 
 
@@ -116,35 +131,62 @@ RISKY_KEYWORDS = {
 # Hybrid Text Scam Detection
 # ============================
 def detect_message(text: str):
-    """Enhanced scam detection with weighted keywords + sentiment."""
-    X_input = vectorizer.transform([text])
-    ml_prob = text_model.predict_proba(X_input)[0][1]
+    """
+    Improved hybrid detection:
+    - Unicode-normalize the input
+    - Lowercase (safe for Latin; harmless for Devanagari/Gujarati)
+    - Use re.escape() and Unicode-friendly boundary checks
+    - Increase keyword contribution so matches have more effect
+    - Return detailed info for debugging/explainability
+    """
+    if not text:
+        return {
+            "label": "✅ Likely Safe",
+            "ml_prob": 0.0,
+            "keyword_score": 0,
+            "sentiment": {"compound": 0.0},
+            "combined_prob": 0.0,
+            "keywords": []
+        }
 
-    # --- Weighted keyword detection ---
+    # Normalize unicode to avoid invisible differences
+    text = unicodedata.normalize("NFKC", text)
+    text_lower = text.lower()
+
     found_keywords = []
     keyword_score = 0
+    # Use negative/positive lookarounds instead of raw \b for better Unicode handling
     for kw, weight in RISKY_KEYWORDS.items():
-        if re.search(rf"\b{kw}\b", text, re.IGNORECASE):
+        pattern = rf'(?<!\w){re.escape(kw)}(?!\w)'
+        if re.search(pattern, text_lower, flags=re.UNICODE):
             found_keywords.append(kw)
             keyword_score += weight
 
-    # --- Sentiment analysis ---
+    # Sentiment
     sentiment = sent_analyzer.polarity_scores(text)
-    neg_score = sentiment['neg']
-    compound = sentiment['compound']
-
-    # Urgency / fear boosting (if tone is very negative)
+    neg_score = sentiment.get('neg', 0.0)
+    compound = sentiment.get('compound', 0.0)
     sentiment_boost = 0.1 if neg_score > 0.3 or compound < -0.2 else 0.0
 
-    # --- Combined risk scoring ---
-    combined_prob = ml_prob + (keyword_score * 0.03) + sentiment_boost
-    combined_prob = min(combined_prob, 1.0)  # clamp to 1.0
+    # ML model
+    ml_prob = 0.0
+    if text_model and vectorizer:
+        try:
+            text_vec = vectorizer.transform([text])
+            ml_prob = float(text_model.predict_proba(text_vec)[0][1])
+        except Exception as e:
+            # keep silent in production; show small warning in UI instead
+            st.warning(f"ML model prediction failed: {e}")
 
-    # --- Decision logic ---
-    if combined_prob > 0.35:
-        label = "🚨 Likely Scam"
-    else:
-        label = "✅ Likely Safe"
+    # Increase keyword contribution so matches matter: try 0.06 (tuneable)
+    KEYWORD_MULTIPLIER = 0.06
+    combined_prob = ml_prob + (keyword_score * KEYWORD_MULTIPLIER) + sentiment_boost
+    combined_prob = max(0.0, min(combined_prob, 1.0))
+
+    # Lowered threshold for flagging (tuneable)
+    THRESHOLD = 0.25
+
+    label = "🚨 Likely Scam" if combined_prob > THRESHOLD else "✅ Likely Safe"
 
     return {
         "label": label,
@@ -242,6 +284,36 @@ def detect_deepfake(video_path, sample_frames=12):
         return label, avg_score
     else:
         return "❌ No frames processed", 0.0
+
+def render_circular_progress(risk: int, color: str, size_px: int = 120):
+    """
+    Render an accurate SVG circular progress using components.html so the SVG
+    is not escaped and the arc length matches the numeric percent.
+    """
+    radius = 15.9155
+    circumference = 2 * math.pi * radius
+    pct = max(0, min(int(risk), 100))
+    offset = circumference * (1 - pct / 100.0)
+
+    svg = f"""
+    <div style="text-align:center;">
+      <svg width="{size_px}" height="{size_px}" viewBox="0 0 36 36" role="img" aria-label="{pct}%">
+        <!-- background -->
+        <circle cx="18" cy="18" r="{radius}" fill="none" stroke="#eee" stroke-width="2"></circle>
+
+        <!-- progress: full circumference + dashoffset -->
+        <circle cx="18" cy="18" r="{radius}" fill="none" stroke="{color}" stroke-width="2"
+                stroke-dasharray="{circumference:.3f}" stroke-dashoffset="{offset:.3f}"
+                stroke-linecap="round" transform="rotate(-90 18 18)"></circle>
+
+        <!-- center label -->
+        <text x="18" y="20.35" font-size="4" text-anchor="middle" fill="{color}">{pct}%</text>
+      </svg>
+    </div>
+    """
+
+    # components.html renders raw HTML/SVG reliably; adjust height so nothing is clipped
+    components.html(svg, height=size_px + 20)
 
 # -------------------------------
 # Custom CSS for Modern UI & Light Theme (forced)
@@ -509,7 +581,7 @@ st.markdown(
 tab1, tab2, tab3 = st.tabs(["📝 Text Analysis", "🎙️ Audio Analysis", "🎥 Video Analysis"])
 
 with tab1:
-    st.markdown('<div class="card">', unsafe_allow_html=True)
+    # st.markdown('<div class="card">', unsafe_allow_html=True)
     st.markdown('<div class="card-title"><span>📝</span> Text Input</div>', unsafe_allow_html=True)
     
     user_text = st.text_area(
@@ -535,13 +607,15 @@ with tab1:
                 risk = int(result["combined_prob"]*100)
                 color = "#6bff8c" if risk < 40 else "#ffa86b" if risk < 70 else "#ff6b6b"
 
+                render_circular_progress(risk, color)
+
                 st.markdown(f'<div class="result-icon">{icon}</div>', unsafe_allow_html=True)
                 st.markdown(f'<div class="result-label {label_class}">{result["label"]}</div>', unsafe_allow_html=True)
                 st.markdown(f'<div class="probability {label_class}">Scam probability: {percent}%</div>', unsafe_allow_html=True)
                 st.markdown(f"**Scam Category:** {category}")
 
                 # Optional extra display for explainability
-                st.write(f"**Detected Keywords:** {', '.join(result['keywords']) if result['keywords'] else 'None'}")
+                # st.write(f"**Detected Keywords:** {', '.join(result['keywords']) if result['keywords'] else 'None'}")
                 st.write(f"**Sentiment (compound):** {result['sentiment']['compound']:.2f}")
                 st.write(f"**ML Model Probability:** {result['ml_prob']:.2f}")
                 
@@ -550,27 +624,6 @@ with tab1:
                 else:
                     st.success("✅ Message seems safe. Always double-check unknown numbers or domains.")
 
-
-                # Progress bar visualization
-                # st.markdown('<div class="progress-bar"><div class="progress-fill" style="width: {}%;"></div></div>'.format(percent), unsafe_allow_html=True)
-                
-                st.markdown(f"""
-                <div style="text-align:center;">
-                <svg width="120" height="120" viewBox="0 0 36 36">
-                    <path d="M18 2.0845
-                            a 15.9155 15.9155 0 0 1 0 31.831
-                            a 15.9155 15.9155 0 0 1 0 -31.831"
-                        fill="none" stroke="#eee" stroke-width="2"/>
-                    <path d="M18 2.0845
-                            a 15.9155 15.9155 0 0 1 0 31.831"
-                        fill="none" stroke="{color}" stroke-width="2" 
-                        stroke-dasharray="{risk},100"/>
-                    <text x="18" y="20.35" font-size="8" text-anchor="middle" fill="{color}">
-                {risk}%
-                    </text>
-                </svg>
-                </div>
-                """, unsafe_allow_html=True)
 
                 # Display keywords
                 keywords = result.get("keywords", []) if isinstance(result, dict) else []
@@ -587,40 +640,66 @@ with tab1:
     st.markdown('</div>', unsafe_allow_html=True)
 
 with tab2:
-    st.markdown('<div class="card">', unsafe_allow_html=True)
+    # st.markdown('<div class="card">', unsafe_allow_html=True)
     st.markdown('<div class="card-title"><span>🎙️</span> Audio Analysis</div>', unsafe_allow_html=True)
     
-    st.markdown('<div class="upload-box">', unsafe_allow_html=True)
+    # st.markdown('<div class="upload-box">', unsafe_allow_html=True)s
     uploaded_audio = st.file_uploader("Upload an audio file", type=["wav", "mp3"], key="audio_upload")
-    st.markdown('</div>', unsafe_allow_html=True)
+    # st.markdown('</div>', unsafe_allow_html=True)
     
     lang_choice = st.selectbox("Select Language", ["en-in (Indian English)", "hi (Hindi)", "gu (Gujarati)"])
     lang_map = {"en-in (Indian English)": "en-in", "hi (Hindi)": "hi", "gu (Gujarati)": "gu"}
     
     if uploaded_audio and st.button("Analyze Audio", key="analyze_audio"):
+        # Save uploaded audio to a temp file for processing
+        suffix = Path(uploaded_audio.name).suffix or ".wav"
+        temp_audio_path = f"temp_audio{suffix}"
+        with open(temp_audio_path, "wb") as f:
+            f.write(uploaded_audio.read())
+    
         with st.spinner("Transcribing audio content..."):
-            transcription = transcribe_audio(uploaded_audio, lang=lang_map[lang_choice])
-            
+            transcription = transcribe_audio(temp_audio_path, lang=lang_map[lang_choice])
+    
         if transcription:
             st.success("Audio transcribed successfully!")
-            st.text_area("Transcribed Text", transcription, height=100)
-            
+            st.text_area("Transcribed Text", transcription, height=120)
+    
             with st.spinner("Analyzing transcribed text..."):
-                label, scam_prob, keywords = detect_message(transcription)
-                
-            # Display results
-            percent = f"{scam_prob*100:.1f}"
-            icon = "🚨" if "Scam" in label else "✅"
-            label_class = "scam" if "Scam" in label else "safe"
-            
+                result = detect_message(transcription)
+    
+            # Safely extract results
+            combined_prob = result.get("combined_prob", 0)
+            percent = f"{combined_prob*100:.1f}"
+            icon = "🚨" if "Scam" in result["label"] else "✅"
+            label_class = "scam" if "Scam" in result["label"] else "safe"
+    
+            category = categorize_scam(result.get("keywords", []), result.get("sentiment", {"compound": 0}))
+    
+            risk = int(combined_prob*100)
+            color = "#6bff8c" if risk < 40 else "#ffa86b" if risk < 70 else "#ff6b6b"
+
+            render_circular_progress(risk, color)
+    
             st.markdown(f'<div class="result-icon">{icon}</div>', unsafe_allow_html=True)
-            st.markdown(f'<div class="result-label {label_class}">{label}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="result-label {label_class}">{result["label"]}</div>', unsafe_allow_html=True)
             st.markdown(f'<div class="probability {label_class}">Scam probability: {percent}%</div>', unsafe_allow_html=True)
-            
-            # Progress bar visualization
-            st.markdown('<div class="progress-bar"><div class="progress-fill" style="width: {}%;"></div></div>'.format(percent), unsafe_allow_html=True)
-            
-            # Display keywords
+            st.markdown(f"**Scam Category:** {category}")
+    
+            # Explainability details
+            st.write(f"**Detected Keywords:** {', '.join(result.get('keywords', [])) if result.get('keywords') else 'None'}")
+            st.write(f"**Sentiment (compound):** {result.get('sentiment', {}).get('compound', 0):.2f}")
+            st.write(f"**ML Model Probability:** {result.get('ml_prob', 0):.2f}")
+    
+            if "Scam" in result["label"]:
+                st.warning("⚠️ Advice: Do not click on suspicious links or share OTPs. Verify sender via official site.")
+            else:
+                st.success("✅ Audio content seems safe. Always double-check unknown callers or links.")
+    
+            # Circular progress SVG
+            render_circular_progress(risk, color)
+    
+            # Display keywords visually
+            keywords = result.get("keywords", []) if isinstance(result, dict) else []
             if keywords:
                 st.markdown("<h4>Detected Risky Keywords</h4>", unsafe_allow_html=True)
                 st.markdown('<div class="keyword-list">', unsafe_allow_html=True)
@@ -629,10 +708,12 @@ with tab2:
                 st.markdown('</div>', unsafe_allow_html=True)
             else:
                 st.info("No risky keywords detected in this audio.")
+        else:
+            st.warning("Transcription failed or returned no text. Try a different file or language.")
     st.markdown('</div>', unsafe_allow_html=True)
 
 with tab3:
-    st.markdown('<div class="card">', unsafe_allow_html=True)
+    # st.markdown('<div class="card">', unsafe_allow_html=True)
     st.markdown('<div class="card-title"><span>🎥</span> Video Analysis</div>', unsafe_allow_html=True)
     
     st.markdown('<div class="upload-box">', unsafe_allow_html=True)
