@@ -1,3 +1,5 @@
+# Digital Arrest Detector - Multi-Channel Fraud Prevention
+# app.py
 import streamlit as st
 import streamlit.components.v1 as components
 import joblib
@@ -15,6 +17,8 @@ import nltk
 import re
 import unicodedata
 import math
+from utils.rag_utils import is_ollama_available, rag_verify_text
+from utils.rag_utils import is_ollama_available, rag_refine_transcription
 
 nltk.download("vader_lexicon")
 sent_analyzer = SentimentIntensityAnalyzer()
@@ -63,67 +67,109 @@ deepfake_model = load_deepfake_model()
 # Consolidated risky keywords with weights (no duplicates)
 RISKY_KEYWORDS = {
     # English (high=3, medium=2, low=1)
-    "otp": 3, "pin": 3, "cvv": 3, "password": 3, "ssn": 3,
-    "bank": 2, "account": 2, "verify": 2, "verify now": 2, "secure your account": 2,
-    "access": 2, "transaction": 2, "payment": 2, "transfer": 2, "credit": 2, "debit": 2,
-    "prize": 2, "winner": 2, "lottery": 2, "claim": 2, "redeem": 2, "suspend": 2,
-    "confirm": 2, "alert": 2, "urgent": 2, "immediately": 2, "urgent action": 2,
-    "scam": 2, "fraud": 2, "phishing": 2, "hacking": 2, "giveaway": 2, "reward": 2,
-    "limited": 1, "offer": 1, "free": 1, "click": 1, "risk": 1, "security": 1,
-    "identity": 1, "social": 1, "money": 1, "fake": 1, "suspicious": 1,
-    "warning": 1, "caution": 1, "danger": 1, "urgent update": 1, "act now": 1,
-    "exclusive": 1, "important": 1, "attention": 1, "limited time": 1,
-    "win": 1, "cash": 1, "gift": 1, "bonus": 1, "subscribe": 1,
-    "click here": 1, "visit": 1, "link": 1, "download": 1,
-    "risk-free": 1, "guarantee": 1, "trial": 1, "urgent response": 1,
-    "act quickly": 1, "don't miss": 1, "final notice": 1, "last chance": 1,
-    "immediate action": 1, "secure": 1, "protect": 1, "verification": 1, "block": 1,
+    "otp": 3, "one time password": 3, "one-time password": 3, "one time code": 3, "one-time code": 3,
+    "pin": 3, "atm pin": 3, "upi pin": 3, "cvv": 3, "atm cvv": 3, "password": 3, "passcode": 3,
+    "ssn": 3, "social security number": 3, "aadhar": 3, "aadhaar": 3, "identity number": 3,
+    "verify now": 2, "verify account": 2, "verify your account": 2, "verify phone number": 2,
+    "confirm": 2, "confirm identity": 2, "confirm now": 2, "account verification": 2, "verification": 1,
+    "bank": 2, "bank account": 2, "account number": 2, "account": 2, "suspend account": 2, "suspended account": 2,
+    "secure your account": 2, "secure your account now": 2, "secure": 1, "security": 1, "security alert": 2,
+    "transaction": 2, "transaction alert": 2, "unauthorized transaction": 2, "transaction failed": 2,
+    "payment": 2, "payment due": 2, "confirm payment": 2, "refund": 2, "refund pending": 2, "chargeback": 2,
+    "transfer": 2, "fund transfer": 2, "immediate transfer": 2, "transfer now": 2,
+    "credit": 2, "debit": 2, "credit card": 2, "debit card": 2, "banking": 2, "bank notice": 2,
+    "lottery": 2, "lottery winner": 2, "winner": 2, "win": 1, "prize": 2, "claim": 2, "claim prize": 2,
+    "redeem": 2, "redeem reward": 2, "reward": 2, "giveaway": 2, "giveaway contest": 2, "reward points": 2,
+    "suspend": 2, "suspended": 2, "alert": 2, "fraud": 2, "fraud alert": 2, "phishing": 2, "phishing scam": 2,
+    "scam": 2, "scammer": 2, "scamming": 2, "hacking": 2, "hacked": 2, "hacker": 2, "hack": 2,
+    "urgent": 2, "urgent action": 2, "urgent update": 2, "urgent update required": 2, "immediately": 2,
+    "immediate action required": 2, "immediate action needed": 2, "act now": 1, "act quickly": 1,
+    "final notice": 1, "final notice sent": 1, "last chance": 1, "last chance offer": 1, "dont miss": 1, "don't miss": 1,
+    "limited": 1, "limited time": 1, "limited time offer": 1, "exclusive": 1, "important": 1, "attention": 1,
+    "offer": 1, "free": 1, "free offer": 1, "risk-free": 1, "guarantee": 1, "trial": 1,
+    "click": 1, "click here": 1, "click the link": 1, "click link": 1, "visit": 1, "link": 1, "shortlink": 1,
+    "bit.ly": 1, "tinyurl": 1, "short url": 1, "download": 1, "attachment": 1, "open attachment": 1,
+    "subscribe": 1, "subscribe now": 1, "bonus": 1, "cash": 1, "money": 1, "transfer money": 2,
+    "gift": 1, "gift card": 1, "cash prize": 1, "win cash": 1, "important update": 1, "alert message": 1,
+    "customer support": 1, "customer care": 1, "helpdesk": 1, "call back": 1, "call us now": 1,
+    "contact us": 1, "verify details": 2, "update information": 2, "update your information": 2,
+    "provide details": 2, "submit documents": 2, "send documents": 2, "share otp": 3, "share password": 3,
+    "share pin": 3, "do not share": 1, "suspicious activity": 1, "suspicious": 1, "suspicious transaction": 2,
+    "warning": 1, "caution": 1, "danger": 1, "notice": 1, "final warning": 1, "security code": 3,
+    "auth code": 3, "authentication code": 3, "authorize": 2, "authorization": 2,
+    "identity": 1, "identity theft": 2, "protect": 1, "protect your account": 2, "block": 1, "blocked": 2,
+    "verify identity": 2, "confirm identity now": 2, "kyc": 2, "complete kyc": 2, "know your customer": 2,
+    "customer verification": 2, "support team": 1, "verification link": 2, "secure link": 2,
 
-    # Indian English variants
-    "one time password": 3, "one-time password": 3, "atm pin": 3, "atm cvv": 3,
-    "social security number": 3, "bank account": 2, "account number": 2,
-    "verify account": 2, "secure your account now": 2, "transaction alert": 2,
-    "payment due": 2, "fund transfer": 2, "credit card": 2, "debit card": 2,
-    "lottery winner": 2, "claim prize": 2, "redeem reward": 2, "suspend account": 2,
-    "confirm identity": 2, "security alert": 2, "urgent update required": 2,
-    "immediate action required": 2, "phishing scam": 2, "fraud alert": 2,
-    "giveaway contest": 2, "reward points": 2, "free offer": 1, "click link": 1,
-    "suspicious activity": 1, "urgent response needed": 1, "final notice sent": 1,  
-    "last chance offer": 1, "immediate action needed": 1, "account verification": 1,
+    # URL / link shorteners & phishing indicators (low-medium)
+    "http://": 1, "https://": 1, "www.": 1, ".com/": 1, ".in/": 1, ".net/": 1, "bitly.com": 1, "tinyurl.com": 1,
+    "shorten": 1, "redirect": 1, "verify link": 2, "login link": 2, "reset password": 2, "password reset": 2,
 
-    # Hindi (Devanagari)
-    "ओटीपी": 3, "पिन": 3, "सीवीवी": 3, "पासवर्ड": 3, "एसएसएन": 3,
-    "बैंक": 2, "खाता": 2, "वेरिफाई": 2, "अब सत्यापित करें": 2, "अपने खाते को सुरक्षित करें": 2,
-    "एक्सेस": 2, "लेनदेन": 2, "भुगतान": 2, "ट्रांसफर": 2, "क्रेडिट": 2, "डेबिट": 2,
-    "इनाम": 2, "विनर": 2, "लॉटरी": 2, "दावा": 2, "रिडीम": 2, "सस्पेंड": 2,
-    "पुष्टि": 2, "अलर्ट": 2, "तुरंत": 2, "फौरन": 2, "त्वरित कार्रवाई": 2,
-    "स्कैम": 2, "फ्रॉड": 2, "फिशिंग": 2, "हैकिंग": 2,
-    "मुफ्त": 1, "ऑफर": 1, "क्लिक": 1, "जोखिम": 1, "सुरक्षा": 1,
-    "पहचान": 1, "सोशल": 1, "पैसे": 1, "नकली": 1, "संदेहजनक": 1, "चेतावनी": 1,
-    "सावधानी": 1, "खतरा": 1, "तत्काल अपडेट": 1, "अब कार्य करें": 1,
-    "विशेष": 1, "महत्वपूर्ण": 1, "ध्यान दें": 1, "सीमित समय": 1,
-    "जीत": 1, "नकद": 1, "उपहार": 1, "बोनस": 1, "सब्सक्राइब": 1,
-    "यहाँ क्लिक करें": 1, "भ्रमण करें": 1, "लिंक": 1, "डाउनलोड": 1,
-    "जोखिम-मुक्त": 1, "गारंटी": 1, "परीक्षण": 1, "तत्काल प्रतिक्रिया": 1,
-    "त्वरित कार्य करें": 1, "मिस न करें": 1, "अंतिम नोटिस": 1, "अंतिम मौका": 1,
-    "तत्काल कार्रवाई": 1, "सुरक्षित": 1, "सुरक्षा करें": 1, "सत्यापन": 1, "ब्लॉक": 1,
+    # Payment / wallet / India-specific (medium where sensitive)
+    "upi": 2, "upi id": 2, "paytm": 2, "phonepe": 2, "google pay": 2, "gpay": 2, "mobicash": 2,
+    "bhim": 2, "payment request": 2, "payment link": 2, "pay now": 2, "collect request": 2,
+    "account transfer": 2, "bank transfer": 2, "neft": 2, "imps": 2, "rtgs": 2,
+    "merchant": 1, "invoice": 1, "bill due": 1, "billing": 1,
 
-    # Gujarati
-    "ઓટિપિ": 3, "ઓટીપી": 3, "પાસવર્ડ": 3, "પિન": 3, "સિવિવી": 3, "એસએસએન": 3,
-    "બેંક": 2, "ખાતા": 2, "વેરિફાઈ": 2, "હવે વેરિફાઈ કરો": 2, "તમારા ખાતાને સુરક્ષિત કરો": 2,
-    "એક્સેસ": 2, "ટ્રાન્ઝેક્શન": 2, "પેમેન્ટ": 2, "ટ્રાન્સફર": 2, "ક્રેડિટ": 2, "ડેબિટ": 2,
-    "ઇનામ": 2, "વિનર": 2, "લોટરી": 2, "દાવો": 2, "રિડિમ": 2, "સસ્પેન્ડ": 2,
-    "પુષ્ટિ": 2, "અલર્ટ": 2, "તાત્કાલિક": 2, "તુરંત": 2, "તાત્કાલિક કાર્યવાહી": 2,
-    "ઠગ": 2, "ફ્રોડ": 2, "ફિશિંગ": 2, "હેકિંગ": 2,
-    "ફ્રી": 1, "ઓફર": 1, "ક્લિક": 1, "જોખમ": 1, "સુરક્ષા": 1,
-    "ઓળખ": 1, "સોશિયલ": 1, "પેસા": 1, "નકલી": 1, "શંકાસ્પદ": 1, "ચેતવણી": 1,
-    "સાવચેતી": 1, "ખતરો": 1, "તાત્કાલિક અપડેટ": 1, "હવે કાર્ય કરો": 1,
-    "વિશેષ": 1, "મહત્વપૂર્ણ": 1, "ધ્યાન આપો": 1, "સીમિત સમય": 1,
-    "જીત": 1, "નકદ": 1, "ઉપહાર": 1, "બોનસ": 1, "સબ્સ્ક્રાઇબ": 1,
-    "અહીં ક્લિક કરો": 1, "વિઝિટ": 1, "લિંક": 1, "ડાઉનલોડ": 1,
-    "જોખમ-મુક્ત": 1, "ગેરંટી": 1, "ટ્રાયલ": 1, "તાત્કાલિક પ્રતિસાદ": 1,
-    "તાત્કાલિક કાર્ય કરો": 1, "મિસ ન કરો": 1, "અંતિમ સૂચના": 1, "છેલ્લો મોકો": 1,
-    "તાત્કાલિક કાર્યવાહી": 1, "સુરક્ષિત": 1, "સુરક્ષા કરો": 1, "સત્યાપન": 1, "બ્લોક": 1,
+    # Social engineering / impersonation phrases (medium)
+    "we are from": 1, "this is from": 1, "official message": 1, "from bank": 2, "from bank support": 2,
+    "from government": 2, "from aadhaar": 2, "from uidai": 2, "from customer support": 1,
+    "verify with us": 2, "call from bank": 2, "call from support": 1, "urgent call": 1,
+
+    # Hindi (Devanagari) - expanded & de-duplicated
+    "ओटीपी": 3, "ओटीपी को": 3, "वन टाइम पासवर्ड": 3, "पासवर्ड": 3, "पासवर्ड रीसेट": 2, "पिन": 3, "सीवीवी": 3, "एसएसएन": 3,
+    "आधार": 3, "आधार नंबर": 3, "खाता": 2, "बैंक": 2, "बैंक खाता": 2, "खाता संख्या": 2, "अपने खाते को सुरक्षित करें": 2,
+    "अब सत्यापित करें": 2, "सत्यापित करें": 2, "वेरिफाई": 2, "सत्यापन": 1, "सत्यापन लिंक": 2, "एक्सेस": 2,
+    "लेनदेन": 2, "भुगतान": 2, "ट्रांसफर": 2, "क्रेडिट": 2, "डेबिट": 2, "ट्रांसफर करें": 2, "पे नाउ": 2,
+    "इनाम": 2, "विनर": 2, "लॉटरी": 2, "दावा": 2, "रिडीम": 2, "रिडीम करें": 2, "रिफंड": 2, "सस्पेंड": 2, "सस्पेंडेड": 2,
+    "पुष्टि": 2, "पुष्टि करें": 2, "अलर्ट": 2, "सुरक्षा अलर्ट": 2, "तुरंत": 2, "फौरन": 2, "त्वरित कार्रवाई": 2, "तत्काल कार्रवाई": 1,
+    "तत्काल अपडेट": 1, "तुरंत अपडेट": 1, "अंतिम नोटिस": 1, "अंतिम मौका": 1, "मिस न करें": 1,
+    "स्कैम": 2, "फ्रॉड": 2, "फिशिंग": 2, "हैकिंग": 2, "हैक्ड": 2, "हैकर": 2,
+    "मुफ्त": 1, "ऑफर": 1, "क्लिक": 1, "यहाँ क्लिक करें": 1, "लिंक": 1, "लिंक पर क्लिक करें": 1, "डाउनलोड": 1,
+    "जोखिम": 1, "जोखिम-मुक्त": 1, "गारंटी": 1, "ट्रायल": 1, "गौरव": 1, "विशेष": 1, "महत्वपूर्ण": 1, "ध्यान दें": 1,
+    "पहचान": 1, "पहचान चोरी": 2, "सुरक्षित": 1, "सुरक्षा करें": 1, "सुरक्षा": 1, "सावधानी": 1, "चेतावनी": 1, "खतरा": 1,
+    "साझा न करें": 3, "शेयर न करें": 3, "संदेहजनक": 1, "नकली": 1, "पैसे": 1, "नकद": 1, "उपहार": 1, "बोनस": 1, "सब्सक्राइब": 1,
+    "अभी सब्सक्राइब करें": 1, "अभी कॉल करें": 1, "हमें कॉल करें": 1, "ग्राहक सेवा": 1, "ग्राहक सहायता": 1, "सहायता डेस्क": 1,
+    "संपर्क करें": 1, "हमसे संपर्क करें": 1, "विवरण सत्यापित करें": 2, "जानकारी अपडेट करें": 2, "अपनी जानकारी अपडेट करें": 2,
+    "विवरण प्रदान करें": 2, "दस्तावेज़ जमा करें": 2, "दस्तावेज़ भेजें": 2, "ओटीपी साझा करें": 3, "पासवर्ड साझा करें": 3,
+    "पिन साझा करें": 3, "साझा न करें": 1, "संदिग्ध गतिविधि": 1, "संदिग्ध लेनदेन": 2, "चेतावनी": 1, "सावधानी": 1, "खतरा": 1, "अंतिम चेतावनी": 1, "सुरक्षा कोड": 3,
+    "प्रमाणीकरण कोड": 3, "प्राधिकरण": 2, "पहचान सत्यापित करें": 2, "अब पहचान की पुष्टि करें": 2, "केवाईसी": 2, "केवाईसी पूरा करें": 2, "अपने ग्राहक को जानें": 2,
+    "ग्राहक सत्यापन": 2, "सत्यापन लिंक": 2, "सुरक्षित लिंक": 2, "पासवर्ड रीसेट करें": 2, "पासवर्ड रिसेट": 2, "लॉगिन लिंक": 2, "लॉगिन करें": 2,
+    "खाता अपडेट": 2, "भुगतान अनुरोध": 2, "भुगतान लिंक": 2, "अब भुगतान करें": 2, "संग्रह अनुरोध": 2, "बैंक ट्रांसफर": 2, "मर्चेंट": 1, "चालान": 1, "बिल देय": 1, "बिलिंग": 1,
+    "हम बैंक से हैं": 2, "हम समर्थन से हैं": 1, "सरकारी संदेश": 2, "आधार से": 2, "यूआईडीएआई से": 2, "ग्राहक सहायता से": 1, "हमारे साथ सत्यापित करें": 2,
+    "बैंक से कॉल": 2, "समर्थन से कॉल": 1, "आपातकालीन कॉल": 1, "ग्राहक सेवा टीम": 1, "सत्यापन लिंक": 2, "सुरक्षित लिंक": 2,
+
+    # Gujarati - expanded & de-duplicated
+    "ઓટિપિ": 3, "ઓટીપી": 3, "પાસવર્ડ": 3, "પાસવર્ડ રીસેટ": 2, "પિન": 3, "સિવિવી": 3, "એસએસએન": 3,
+    "આધાર": 3, "ખાતા": 2, "બેંક": 2, "બેંક ખાતું": 2, "ખાતા નંબર": 2, "તમારા ખાતાને સુરક્ષિત કરો": 2,
+    "હવે વેરિફાઈ કરો": 2, "વેરિફાઈ": 2, "સત્યાપન": 1, "સત્યાપન લિંક": 2, "એક્સેસ": 2,
+    "ટ્રાન્ઝેક્શન": 2, "પેમેન્ટ": 2, "ટ્રાન્સફર": 2, "ક્રેડિટ": 2, "ડેબિટ": 2,
+    "ઇનામ": 2, "વિનર": 2, "લોટરી": 2, "દાવો": 2, "રિડિમ": 2, "રિડિમ કરો": 2, "રિફંડ": 2, "સસ્પેન્ડ": 2,
+    "પુષ્ટિ": 2, "પુષ્ટિ કરો": 2, "અલર્ટ": 2, "સુરક્ષા અલર્ટ": 2, "તાત્કાલિક": 2, "તુરંત": 2, "તાત્કાલિક કાર્યવાહી": 2,
+    "તાત્કાલિક અપડેટ": 1, "અંતિમ સૂચના": 1, "છેલ્લો મોકો": 1, "મિસ ન કરો": 1,
+    "ઠગ": 2, "ફ્રોડ": 2, "ફિશિંગ": 2, "હેકિંગ": 2, "હેક્ડ": 2, "હેકર": 2, "મફત": 1,
+    "ફ્રી": 1, "ઓફર": 1, "ક્લિક": 1, "અહીં ક્લિક કરો": 1, "લિંક": 1, "લિંક પર ક્લિક કરો": 1, "ડાઉનલોડ": 1,
+    "જોખમ": 1, "જોખમ-મુક્ત": 1, "ગેરંટી": 1, "ટ્રાયલ": 1, "વિશેષ": 1, "મહત્વપૂર્ણ": 1, "ધ્યાન આપો": 1,
+    "ઓળખ": 1, "ઓળખ-ચોરી": 2, "સુરક્ષિત": 1, "સુરક્ષા કરો": 1, "શંકાસ્પદ": 1, "ચેતવણી": 1, "સાવચેતી": 1,
+    "પેસા": 1, "નકદ": 1, "ઉપહાર": 1, "બોનસ": 1, "સબ્સ્ક્રાઇબ": 1, "સાંજે ન કરો": 3, "શેર ન કરો": 3, "સંદેહજનક": 1,
+    "નકલી": 1, "અંતિમ ચેતવણી": 1, "સુરક્ષા કોડ": 3, "પ્રમાણિકરણ કોડ": 3, "પ્રાધિકરણ": 2, "ઓળખ સત્યાપિત કરો": 2,
+    "હવે ઓળખની પુષ્ટિ કરો": 2, "કેવાયસી": 2, "કેવાયસી પૂર્ણ કરો": 2, "તમારા ગ્રાહકને જાણો": 2,
+    "ગ્રાહક સત્યાપન": 2, "સત્યાપન લિંક": 2, "સુરક્ષિત લિંક": 2, "પાસવર્ડ રીસેટ કરો": 2, "લોગિન લિંક": 2, "લોગિન કરો": 2,
+    "ખાતા અપડેટ": 2, "ચુકવણી વિનંતી": 2, "ચુકવણી લિંક": 2, "હવે ચુકવણી કરો": 2, "સંગ્રહ વિનંતી": 2,
+    "બેંક ટ્રાન્સફર": 2, "મર્ચન્ટ": 1, "ચલાન": 1, "બિલ બાકી": 1, "બિલિંગ": 1, "અમે બેંકમાંથી છીએ": 2,
+    "અમે સપોર્ટમાંથી છીએ": 1, "સરકારી સંદેશો": 2, "આધારથી": 2, "યુઆઈડીએઈથી": 2, "ગ્રાહક સહાયતા થી": 1,
+    "અમારા સાથે વેરિફાઈ કરો": 2, "બેંકથી કોલ": 2, "સપોર્ટથી કોલ": 1, "તાત્કાલિક કોલ": 1, "ગ્રાહક સેવા ટીમ": 1,
+
+    # Other common multi-lingual keywords and phrases
+    "verify otp": 3, "enter otp": 3, "enter code": 3, "authentication": 2, "authenticator": 2,
+    "security question": 2, "mobile verification": 2, "sso": 1, "login": 2, "login to your account": 2,
+    "reset": 2, "reset now": 2, "reset your password": 2, "expire": 1, "expired": 1,
+    "account blocked": 2, "account locked": 2, "unauthorized": 2, "safeguard": 1,
+
+    # Patterns that often indicate phishing or scam mechanics
+    "verify-account": 2, "account-update": 2, "payment-request": 2, "confirm-payment": 2,
+    "secure-link": 2, "one time password.": 3, "security-alert": 2, "suspicious-login": 2,
+    "immediate-action": 2, "last-chance": 1, "final-warning": 1
 }
 
 
@@ -132,12 +178,10 @@ RISKY_KEYWORDS = {
 # ============================
 def detect_message(text: str):
     """
-    Improved hybrid detection:
-    - Unicode-normalize the input
-    - Lowercase (safe for Latin; harmless for Devanagari/Gujarati)
-    - Use re.escape() and Unicode-friendly boundary checks
-    - Increase keyword contribution so matches have more effect
-    - Return detailed info for debugging/explainability
+    Hybrid detection:
+      - Existing ML + keyword + sentiment scoring
+      - Then call RAG (Phi3:mini via Ollama) to get an LLM verification & explanation
+      - Combine scores (simple weighted average) and return structured dict
     """
     if not text:
         return {
@@ -146,16 +190,17 @@ def detect_message(text: str):
             "keyword_score": 0,
             "sentiment": {"compound": 0.0},
             "combined_prob": 0.0,
-            "keywords": []
+            "keywords": [],
+            "rag": None
         }
 
-    # Normalize unicode to avoid invisible differences
+    # Normalize and lowercase
     text = unicodedata.normalize("NFKC", text)
     text_lower = text.lower()
 
+    # Keyword detection
     found_keywords = []
     keyword_score = 0
-    # Use negative/positive lookarounds instead of raw \b for better Unicode handling
     for kw, weight in RISKY_KEYWORDS.items():
         pattern = rf'(?<!\w){re.escape(kw)}(?!\w)'
         if re.search(pattern, text_lower, flags=re.UNICODE):
@@ -164,28 +209,59 @@ def detect_message(text: str):
 
     # Sentiment
     sentiment = sent_analyzer.polarity_scores(text)
-    neg_score = sentiment.get('neg', 0.0)
-    compound = sentiment.get('compound', 0.0)
+    neg_score = sentiment.get("neg", 0.0)
+    compound = sentiment.get("compound", 0.0)
     sentiment_boost = 0.1 if neg_score > 0.3 or compound < -0.2 else 0.0
 
     # ML model
     ml_prob = 0.0
     if text_model and vectorizer:
         try:
-            text_vec = vectorizer.transform([text])
-            ml_prob = float(text_model.predict_proba(text_vec)[0][1])
+            vec = vectorizer.transform([text])
+            ml_prob = float(text_model.predict_proba(vec)[0][1])
         except Exception as e:
-            # keep silent in production; show small warning in UI instead
-            st.warning(f"ML model prediction failed: {e}")
+            # use 0.0 if ML fails
+            ml_prob = 0.0
 
-    # Increase keyword contribution so matches matter: try 0.06 (tuneable)
+    # Combine heuristics (keyword multiplier tunable)
     KEYWORD_MULTIPLIER = 0.06
-    combined_prob = ml_prob + (keyword_score * KEYWORD_MULTIPLIER) + sentiment_boost
+    base_combined = ml_prob + (keyword_score * KEYWORD_MULTIPLIER) + sentiment_boost
+    base_combined = max(0.0, min(base_combined, 1.0))
+
+    # Default rag result
+    rag_result = None
+    llm_prob = None
+
+    # If Ollama available, call RAG
+    try:
+        if is_ollama_available():
+            rag_result = rag_verify_text(text=text, ml_prob=ml_prob, keywords=found_keywords, sentiment=sentiment)
+            # rag_result may contain risk_percent or llm_prob; normalize it
+            llm_prob = None
+            if rag_result.get("risk_percent") is not None:
+                try:
+                    llm_prob = float(rag_result["risk_percent"]) / 100.0
+                except Exception:
+                    llm_prob = None
+            elif rag_result.get("llm_prob") is not None:
+                llm_prob = rag_result.get("llm_prob")
+    except Exception:
+        # any failure keeps rag_result as None
+        rag_result = None
+
+    # Combine base_combined with llm_prob (if available)
+    if llm_prob is not None:
+        # Weighted average: weight LLM 0.55, heuristics 0.45 (tuneable)
+        COMBINE_WEIGHT_LLM = 0.55
+        COMBINE_WEIGHT_HEUR = 0.45
+        combined_prob = (llm_prob * COMBINE_WEIGHT_LLM) + (base_combined * COMBINE_WEIGHT_HEUR)
+    else:
+        combined_prob = base_combined
+
     combined_prob = max(0.0, min(combined_prob, 1.0))
 
-    # Lowered threshold for flagging (tuneable)
-    THRESHOLD = 0.25
-
+    # Final label threshold (tuneable)
+    THRESHOLD = 0.35
     label = "🚨 Likely Scam" if combined_prob > THRESHOLD else "✅ Likely Safe"
 
     return {
@@ -194,7 +270,8 @@ def detect_message(text: str):
         "keyword_score": keyword_score,
         "sentiment": sentiment,
         "combined_prob": combined_prob,
-        "keywords": found_keywords
+        "keywords": found_keywords,
+        "rag": rag_result
     }
 
 
@@ -219,37 +296,71 @@ def categorize_scam(keywords, sentiment):
 # Speech-to-Text with Vosk
 # ============================
 def transcribe_audio(audio_file, lang="en-in"):
-    """Convert audio to text using Vosk."""
+    """Convert audio to text using Vosk, then optionally refine transcription with LLM (Phi3)."""
     model_path = VOSK_BASE_PATH / f"vosk-model-small-{lang}"
     if not model_path.exists():
         st.error(f"❌ Missing Vosk model: {model_path}")
         return ""
 
-    vosk_model = Model(str(model_path))
-    data, samplerate = sf.read(audio_file)
+    try:
+        vosk_model = Model(str(model_path))
+    except Exception as e:
+        st.error(f"❌ Failed to load Vosk model: {e}")
+        return ""
+
+    # read file (audio_file can be a path or a file-like object)
+    try:
+        data, samplerate = sf.read(audio_file)
+    except Exception as e:
+        st.error(f"❌ Could not read audio file: {e}")
+        return ""
 
     if len(data.shape) > 1:
-        data = data.mean(axis=1)  # stereo → mono
+        data = data.mean(axis=1)  # stereo -> mono
 
     sf.write("temp.wav", data, samplerate)
 
-    with wave.open("temp.wav", "rb") as wf:
-        rec = KaldiRecognizer(vosk_model, wf.getframerate())
-        rec.SetWords(True)
-
+    # Vosk transcription (unchanged)
+    result_text = ""
+    try:
+        with wave.open("temp.wav", "rb") as wf:
+            rec = KaldiRecognizer(vosk_model, wf.getframerate())
+            rec.SetWords(False)  # we only need text
+            while True:
+                chunk = wf.readframes(4000)
+                if len(chunk) == 0:
+                    break
+                if rec.AcceptWaveform(chunk):
+                    res = json.loads(rec.Result())
+                    result_text += " " + res.get("text", "")
+            res = json.loads(rec.FinalResult())
+            result_text += " " + res.get("text", "")
+    except Exception as e:
+        st.warning(f"Vosk transcription failed: {e}")
         result_text = ""
-        while True:
-            chunk = wf.readframes(4000)
-            if len(chunk) == 0:
-                break
-            if rec.AcceptWaveform(chunk):
-                res = json.loads(rec.Result())
-                result_text += " " + res.get("text", "")
-        res = json.loads(rec.FinalResult())
-        result_text += " " + res.get("text", "")
 
-    return result_text.strip()
+    # Clean up temp.wav
+    try:
+        if Path("temp.wav").exists():
+            Path("temp.wav").unlink()
+    except Exception:
+        pass
 
+    result_text = result_text.strip()
+    if not result_text:
+        return ""
+
+    # Optionally refine via LLM
+    if is_ollama_available():
+        try:
+            refine = rag_refine_transcription(result_text)
+            cleaned = refine.get("cleaned_text") or result_text
+            # also expose notes if desired
+            return cleaned
+        except Exception:
+            return result_text
+    else:
+        return result_text
 
 # ============================
 # Deepfake Video Detection
@@ -605,7 +716,7 @@ with tab1:
                 category = categorize_scam(result["keywords"], result["sentiment"])
 
                 risk = int(result["combined_prob"]*100)
-                color = "#6bff8c" if risk < 40 else "#ffa86b" if risk < 70 else "#ff6b6b"
+                color = "#3BCE3B" if risk < 40 else "#ffa86b" if risk < 70 else "#ff6b6b"
 
                 render_circular_progress(risk, color)
 
@@ -619,6 +730,33 @@ with tab1:
                 st.write(f"**Sentiment (compound):** {result['sentiment']['compound']:.2f}")
                 st.write(f"**ML Model Probability:** {result['ml_prob']:.2f}")
                 
+                # --- RAG Section ---
+                rag = result.get("rag")
+                if rag:
+                    st.markdown("### 🧠 AI Reasoning Summary (Phi3:mini)")
+                    # If rag contains structured explanation and advice, render nicely:
+                    explanation = rag.get("explanation") or str(rag.get("raw") or "")
+                    st.write("**Explanation:**")
+                    st.info(explanation)
+
+                    advice = rag.get("advice") or []
+                    if advice:
+                        st.write("**Advice:**")
+                        for a in advice:
+                            st.markdown(f"- {a}")
+                    # If rag returns explicit numeric risk_percent, show a second gauge
+                    rp = rag.get("risk_percent") or rag.get("llm_prob")
+                    if rp:
+                        try:
+                            rp_val = float(rp) if not isinstance(rp, str) else float(rp)
+                            rp_pct = int(rp_val*100) if rp_val <= 1 else int(rp_val)
+                            st.write(f"**LLM risk estimate:** {rp_pct}%")
+                        except Exception:
+                            pass
+                else:
+                    st.info("LLM (Ollama) not available or RAG skipped. Using heuristic/ML results.")
+
+
                 if "Scam" in result["label"]:
                     st.warning("⚠️ Advice: Do not click on suspicious links or share OTPs. Verify sender via official site.")
                 else:
@@ -678,6 +816,7 @@ with tab2:
             risk = int(combined_prob*100)
             color = "#6bff8c" if risk < 40 else "#ffa86b" if risk < 70 else "#ff6b6b"
 
+            # Circular progress SVG
             render_circular_progress(risk, color)
     
             st.markdown(f'<div class="result-icon">{icon}</div>', unsafe_allow_html=True)
@@ -694,9 +833,32 @@ with tab2:
                 st.warning("⚠️ Advice: Do not click on suspicious links or share OTPs. Verify sender via official site.")
             else:
                 st.success("✅ Audio content seems safe. Always double-check unknown callers or links.")
-    
-            # Circular progress SVG
-            render_circular_progress(risk, color)
+
+            # --- RAG Section ---
+                rag = result.get("rag")
+                if rag:
+                    st.markdown("### 🧠 AI Reasoning Summary (Phi3:mini)")
+                    # If rag contains structured explanation and advice, render nicely:
+                    explanation = rag.get("explanation") or str(rag.get("raw") or "")
+                    st.write("**Explanation:**")
+                    st.info(explanation)
+
+                    advice = rag.get("advice") or []
+                    if advice:
+                        st.write("**Advice:**")
+                        for a in advice:
+                            st.markdown(f"- {a}")
+                    # If rag returns explicit numeric risk_percent, show a second gauge
+                    rp = rag.get("risk_percent") or rag.get("llm_prob")
+                    if rp:
+                        try:
+                            rp_val = float(rp) if not isinstance(rp, str) else float(rp)
+                            rp_pct = int(rp_val*100) if rp_val <= 1 else int(rp_val)
+                            st.write(f"**LLM risk estimate:** {rp_pct}%")
+                        except Exception:
+                            pass
+                else:
+                    st.info("LLM (Ollama) not available or RAG skipped. Using heuristic/ML results.")
     
             # Display keywords visually
             keywords = result.get("keywords", []) if isinstance(result, dict) else []
