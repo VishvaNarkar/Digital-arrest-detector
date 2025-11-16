@@ -87,7 +87,7 @@ RISKY_KEYWORDS = {
     "final notice": 1, "final notice sent": 1, "last chance": 1, "last chance offer": 1, "dont miss": 1, "don't miss": 1,
     "limited": 1, "limited time": 1, "limited time offer": 1, "exclusive": 1, "important": 1, "attention": 1,
     "offer": 1, "free": 1, "free offer": 1, "risk-free": 1, "guarantee": 1, "trial": 1,
-    "click": 1, "click here": 1, "click the link": 1, "click link": 1, "visit": 1, "link": 1, "shortlink": 1,
+    "click": 1, "click here": 1, "click the link": 1, "click link": 1, "link": 1, "shortlink": 1,
     "bit.ly": 1, "tinyurl": 1, "short url": 1, "download": 1, "attachment": 1, "open attachment": 1,
     "subscribe": 1, "subscribe now": 1, "bonus": 1, "cash": 1, "money": 1, "transfer money": 2,
     "gift": 1, "gift card": 1, "cash prize": 1, "win cash": 1, "important update": 1, "alert message": 1,
@@ -489,10 +489,10 @@ st.markdown("""
         text-align: center;
     }
     .scam {
-        color: #ff6b6b;
+        color: #FF6B6B;
     }
     .safe {
-        color: #6bff8c;
+        color: #3BCE3B;
     }
     .probability {
         font-size: 1.2rem;
@@ -716,7 +716,7 @@ with tab1:
                 category = categorize_scam(result["keywords"], result["sentiment"])
 
                 risk = int(result["combined_prob"]*100)
-                color = "#3BCE3B" if risk < 40 else "#ffa86b" if risk < 70 else "#ff6b6b"
+                color = "#3BCE3B" if risk < 40 else "#FFA86B" if risk < 70 else "#FF6B6B"
 
                 render_circular_progress(risk, color)
 
@@ -814,7 +814,7 @@ with tab2:
             category = categorize_scam(result.get("keywords", []), result.get("sentiment", {"compound": 0}))
     
             risk = int(combined_prob*100)
-            color = "#6bff8c" if risk < 40 else "#ffa86b" if risk < 70 else "#ff6b6b"
+            color = "#3BCE3B" if risk < 40 else "#FFA86B" if risk < 70 else "#FF6B6B"
 
             # Circular progress SVG
             render_circular_progress(risk, color)
