@@ -100,12 +100,12 @@ def train_and_save_model(data_path: Path, model_dir: Path):
     print("\nClassification Report:\n", classification_report(y_test, y_pred))
     print("\nConfusion Matrix:\n", confusion_matrix(y_test, y_pred))
     acc = accuracy_score(y_test, y_pred)
-    print(f"\n✅ Accuracy: {acc:.4f}")
+    print(f"\nAccuracy: {acc:.4f}")
 
     # --- Save model and vectorizer ---
     joblib.dump(clf, model_dir / "text_model.pkl")
     joblib.dump(vectorizer, model_dir / "tfidf_vectorizer.pkl")
-    print("\n✅ Model and vectorizer saved successfully.")
+    print("\nModel and vectorizer saved successfully.")
 
     # --- Save metadata ---
     metadata = {
@@ -137,7 +137,7 @@ def train_and_save_model(data_path: Path, model_dir: Path):
 
     with open(model_dir / "metadata.json", "w", encoding="utf-8") as f:
         json.dump(safe_metadata, f, indent=2, ensure_ascii=False)
-    print("✅ Metadata saved.")
+    print("Metadata saved.")
 
     # --- Create LLM fine-tuning dataset ---
     df_balanced["label_text"] = df_balanced["label_numeric"].map({0: "ham", 1: "spam"})
@@ -152,7 +152,7 @@ def train_and_save_model(data_path: Path, model_dir: Path):
     train_llm, test_llm = train_test_split(df_llm, test_size=0.2, random_state=42, shuffle=True)
     train_llm.to_json(model_dir / "train.jsonl", orient="records", lines=True)
     test_llm.to_json(model_dir / "test.jsonl", orient="records", lines=True)
-    print("✅ LLM datasets (train/test) saved.")
+    print("LLM datasets (train/test) saved.")
 
 
 def main():
@@ -172,7 +172,7 @@ def main():
         )
 
     train_and_save_model(data_path, model_dir)
-    print("\n🎯 Training pipeline completed successfully.")
+    print("\nTraining pipeline completed successfully.")
 
 
 if __name__ == "__main__":

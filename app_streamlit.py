@@ -47,7 +47,7 @@ def load_text_models():
         vectorizer = joblib.load(VECTORIZER_PATH)
         return text_model, vectorizer
     except Exception as e:
-        st.error(f"❌ Failed to load text models: {e}")
+        st.error(f"Failed to load text models: {e}")
         return None, None
 
 
@@ -57,7 +57,7 @@ def load_deepfake_model():
         model = tf.keras.models.load_model(DEEPFAKE_MODEL_PATH, compile=False)
         return model
     except Exception as e:
-        st.error(f"❌ Failed to load deepfake model: {e}")
+        st.error(f"Failed to load deepfake model: {e}")
         return None
 
 
@@ -189,7 +189,7 @@ def detect_message(text: str, threshold: float = 0.35):
     """
     if not text:
         return {
-            "label": "✅ Likely Safe",
+            "label": "Likely Safe",
             "ml_prob": 0.0,
             "keyword_score": 0,
             "sentiment": {"compound": 0.0},
@@ -265,7 +265,7 @@ def detect_message(text: str, threshold: float = 0.35):
     combined_prob = max(0.0, min(combined_prob, 1.0))
 
     # Final label threshold (passed in from UI slider for real-time tuning)
-    label = "🚨 Likely Scam" if combined_prob > threshold else "✅ Likely Safe"
+    label = "Likely Scam" if combined_prob > threshold else "Likely Safe"
 
     return {
         "label": label,
@@ -286,13 +286,13 @@ def categorize_scam(keywords, sentiment):
     compound = sentiment["compound"]
 
     if any(k in keywords for k in ["lottery", "winner", "prize", "gift", "reward"]):
-        return "🎁 Reward / Lottery Scam"
+        return "Reward / Lottery Scam"
     elif any(k in keywords for k in ["bank", "account", "otp", "password", "verify", "transaction"]):
-        return "🏦 Banking / Verification Scam"
+        return "Banking / Verification Scam"
     elif compound < -0.3:
-        return "⚠️ Fear / Threat-Based Scam"
+        return "Fear / Threat-Based Scam"
     else:
-        return "🧠 Unknown / Generic Scam"
+        return "Unknown / Generic Scam"
 
 
 # ============================
@@ -306,20 +306,20 @@ def transcribe_audio(audio_file, lang="en-in"):
     """
     model_path = VOSK_BASE_PATH / f"vosk-model-small-{lang}"
     if not model_path.exists():
-        st.error(f"❌ Missing Vosk model: {model_path}")
+        st.error(f"Missing Vosk model: {model_path}")
         return ""
 
     try:
         vosk_model = Model(str(model_path))
     except Exception as e:
-        st.error(f"❌ Failed to load Vosk model: {e}")
+        st.error(f"Failed to load Vosk model: {e}")
         return ""
 
     # Read the audio file (audio_file can be a path string or a file-like object)
     try:
         data, samplerate = sf.read(audio_file)
     except Exception as e:
-        st.error(f"❌ Could not read audio file: {e}")
+        st.error(f"Could not read audio file: {e}")
         return ""
 
     if len(data.shape) > 1:
@@ -379,20 +379,20 @@ def detect_deepfake(video_path, sample_frames=12):
     across sampled frames; > 0.5 is classified as deepfake.
     """
     if not deepfake_model:
-        return "❌ Model not loaded", 0.0
+        return "Model not loaded", 0.0
 
     cap = cv2.VideoCapture(video_path)
 
     # Validate that the file was opened successfully
     if not cap.isOpened():
-        return "❌ Could not open video file", 0.0
+        return "Could not open video file", 0.0
 
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
     # Guard against empty or unreadable video
     if total_frames <= 0:
         cap.release()
-        return "❌ No video frames found", 0.0
+        return "No video frames found", 0.0
 
     frame_idxs = np.linspace(0, total_frames - 1, sample_frames, dtype=int)
 
@@ -413,10 +413,10 @@ def detect_deepfake(video_path, sample_frames=12):
 
     if preds:
         avg_score = float(np.mean(preds))
-        label = "🚨 Likely Deepfake" if avg_score > 0.5 else "✅ Likely Real"
+        label = "Likely Deepfake" if avg_score > 0.5 else "Likely Real"
         return label, avg_score
     else:
-        return "❌ No frames processed", 0.0
+        return "No frames processed", 0.0
 
 def render_circular_progress(risk: int, color: str, size_px: int = 120):
     """
@@ -660,7 +660,7 @@ st.markdown("""
 st.sidebar.markdown(
     """
     <div style="text-align:center; margin-bottom:30px;">
-        <h1 style="color:#6b8cff; margin-bottom:5px;">🛡 Digital Arrest Detector</h1>
+        <h1 style="color:#6b8cff; margin-bottom:5px;">Digital Arrest Detector</h1>
         <p style="color:#6c757d; font-size:0.9rem;">Multi-Channel Fraud Prevention</p>
     </div>
     """, 
@@ -668,7 +668,7 @@ st.sidebar.markdown(
 )
 
 st.sidebar.markdown("---")
-st.sidebar.markdown("### 📊 Detection Statistics")
+st.sidebar.markdown("### Detection Statistics")
 st.sidebar.markdown(
     """
     <div class="stats-container">
@@ -690,7 +690,7 @@ st.sidebar.markdown(
 )
 
 st.sidebar.markdown("---")
-st.sidebar.markdown("### ⚙️ Detection Sensitivity")
+st.sidebar.markdown("### Detection Sensitivity")
 scam_threshold = st.sidebar.slider(
     label="Scam score threshold",
     min_value=0.10,
@@ -727,11 +727,11 @@ st.markdown(
 )
 
 # Create tabs for different input methods
-tab1, tab2, tab3 = st.tabs(["📝 Text Analysis", "🎙️ Audio Analysis", "🎥 Video Analysis"])
+tab1, tab2, tab3 = st.tabs(["Text Analysis", "Audio Analysis", "Video Analysis"])
 
 with tab1:
     # st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown('<div class="card-title"><span>📝</span> Text Input</div>', unsafe_allow_html=True)
+    st.markdown('<div class="card-title"><span></span> Text Input</div>', unsafe_allow_html=True)
     
     user_text = st.text_area(
         "Enter text to analyze for scam content:",
@@ -748,7 +748,7 @@ with tab1:
                 combined_prob = result.get("combined_prob", 0)
                 percent = f"{combined_prob*100:.1f}"
 
-                icon = "🚨" if "Scam" in result["label"] else "✅"
+                icon = "" if "Scam" in result["label"] else ""
                 label_class = "scam" if "Scam" in result["label"] else "safe"
 
                 category = categorize_scam(result["keywords"], result["sentiment"])
@@ -771,7 +771,7 @@ with tab1:
                 # --- RAG Section ---
                 rag = result.get("rag")
                 if rag:
-                    st.markdown("### 🧠 AI Reasoning Summary (Phi3:mini)")
+                    st.markdown("### AI Reasoning Summary (Phi3:mini)")
                     # If rag contains structured explanation and advice, render nicely:
                     explanation = rag.get("explanation") or str(rag.get("raw") or "")
                     st.write("**Explanation:**")
@@ -796,9 +796,9 @@ with tab1:
 
 
                 if "Scam" in result["label"]:
-                    st.warning("⚠️ Advice: Do not click on suspicious links or share OTPs. Verify sender via official site.")
+                    st.warning("Advice: Do not click on suspicious links or share OTPs. Verify sender via official site.")
                 else:
-                    st.success("✅ Message seems safe. Always double-check unknown numbers or domains.")
+                    st.success("Message seems safe. Always double-check unknown numbers or domains.")
 
 
                 # Display keywords
@@ -817,7 +817,7 @@ with tab1:
 
 with tab2:
     # st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown('<div class="card-title"><span>🎙️</span> Audio Analysis</div>', unsafe_allow_html=True)
+    st.markdown('<div class="card-title"><span></span> Audio Analysis</div>', unsafe_allow_html=True)
     
     # st.markdown('<div class="upload-box">', unsafe_allow_html=True)s
     uploaded_audio = st.file_uploader("Upload an audio file", type=["wav", "mp3"], key="audio_upload")
@@ -853,7 +853,7 @@ with tab2:
             # Safely extract results
             combined_prob = result.get("combined_prob", 0)
             percent = f"{combined_prob*100:.1f}"
-            icon = "🚨" if "Scam" in result["label"] else "✅"
+            icon = "" if "Scam" in result["label"] else ""
             label_class = "scam" if "Scam" in result["label"] else "safe"
     
             category = categorize_scam(result.get("keywords", []), result.get("sentiment", {"compound": 0}))
@@ -875,15 +875,15 @@ with tab2:
             st.write(f"**ML Model Probability:** {result.get('ml_prob', 0):.2f}")
     
             if "Scam" in result["label"]:
-                st.warning("⚠️ Advice: Do not click on suspicious links or share OTPs. Verify sender via official site.")
+                st.warning("Advice: Do not click on suspicious links or share OTPs. Verify sender via official site.")
             else:
-                st.success("✅ Audio content seems safe. Always double-check unknown callers or links.")
+                st.success("Audio content seems safe. Always double-check unknown callers or links.")
 
             # --- RAG Section ---
             # Rendered outside the scam/safe if-else so it appears for both outcomes
             rag = result.get("rag")
             if rag:
-                st.markdown("### 🧠 AI Reasoning Summary (Phi3:mini)")
+                st.markdown("### AI Reasoning Summary (Phi3:mini)")
                 # Render structured explanation and advice from the LLM
                 explanation = rag.get("explanation") or str(rag.get("raw") or "")
                 st.write("**Explanation:**")
@@ -922,7 +922,7 @@ with tab2:
 
 with tab3:
     # st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown('<div class="card-title"><span>🎥</span> Video Analysis</div>', unsafe_allow_html=True)
+    st.markdown('<div class="card-title"><span></span> Video Analysis</div>', unsafe_allow_html=True)
     
     st.markdown('<div class="upload-box">', unsafe_allow_html=True)
     uploaded_video = st.file_uploader("Upload a video file", type=["mp4", "avi", "mov"], key="video_upload")
@@ -947,7 +947,7 @@ with tab3:
             
         # Display results
         percent = f"{score*100:.1f}"
-        icon = "🚨" if "Deepfake" in label else "✅"
+        icon = "" if "Deepfake" in label else ""
         label_class = "scam" if "Deepfake" in label else "safe"
         
         st.markdown(f'<div class="result-icon">{icon}</div>', unsafe_allow_html=True)
@@ -969,15 +969,15 @@ st.markdown("## How It Works")
 st.markdown("""
 <div class="info-grid">
     <div class="info-card">
-        <h3>🤖 Hybrid Detection System</h3>
+        <h3>Hybrid Detection System</h3>
         <p>Combines machine learning models with rule-based keyword analysis for more accurate scam detection across multiple channels.</p>
     </div>
     <div class="info-card">
-        <h3>🌐 Multi-Language Support</h3>
+        <h3>Multi-Language Support</h3>
         <p>Uses Vosk speech recognition models to process audio in Hindi, Gujarati, and Indian English, making it suitable for diverse users across India.</p>
     </div>
     <div class="info-card">
-        <h3>🔍 Deepfake Detection</h3>
+        <h3>Deepfake Detection</h3>
         <p>Analyzes video frames using advanced neural networks to identify potential deepfake content with high accuracy.</p>
     </div>
 </div>

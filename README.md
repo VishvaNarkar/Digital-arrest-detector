@@ -1,153 +1,158 @@
-# 📞 Digital Arrest Detector
+# FraudShield AI — Multi-Channel Scam & Deepfake Detector
 
 An AI-powered tool to **detect digital fraud, scams, and deepfakes** across multiple channels including **Text, Audio, and Video**.  
 Built for real-time prevention, alerts, and awareness against modern cyber scams.
 
+This project features a modern **React SPA frontend** styled with a premium light theme, backed by a robust **FastAPI backend** handling ML model inference and offline audio/video processing.
+
 ---
 
-## 🚀 Features
+## Features
 
 - **Text Scam Detection**
   - NLP-based classification (legit vs scam)
-  - Keyword spotting for risky terms (English, Hindi, Gujarati)
+  - Keyword spotting for risky terms (300+ weights across English, Hindi, Gujarati)
   - Sentiment analysis for urgency/fear/threat signals
-  - Optional LLM verification via Ollama (Phi3:mini)
-
+  - Optional LLM verification via local Ollama (Phi3:mini)
 - **Audio Scam Detection**
-  - Speech-to-text transcription (supports `en-in`, `hi`, `gu`)
+  - Speech-to-text transcription using offline Vosk models (supports `en-in`, `hi`, `gu`)
   - ML-based scam probability scoring on transcribed text
   - Optional LLM transcription refinement via Ollama
-
 - **Video Deepfake Detection**
   - Keras-based deepfake detection model (`Deepfakes_detection_model.keras`)
-  - Classifies uploaded videos as **Likely Real / Deepfake**
+  - Samples 12 frames and averages probabilities to classify as **Likely Real / Deepfake**
 
 ---
 
-## 🛠 Tech Stack
+## Tech Stack
 
-- **Backend**: Python (Streamlit)
-- **ML/NLP**: Scikit-learn, TF-IDF, Keras / TensorFlow
-- **Audio Processing**: Vosk, SoundFile, Wave
-- **Video Processing**: OpenCV, TensorFlow/Keras
-- **Optional LLM**: Ollama + Phi3:mini (local, offline)
+- **Frontend**: React (Vite, Axios, Vanilla CSS, Inter Typography)
+- **Backend**: FastAPI (Python), Uvicorn, Pydantic
+- **ML/NLP**: Scikit-learn, TF-IDF, Keras / TensorFlow, NLTK VADER
+- **Audio/Video**: Vosk, SoundFile, OpenCV, Wave
+- **LLM / RAG**: Ollama + Phi3:mini (local, offline)
 
 ---
 
-## 📂 Project Structure
+## Project Structure
 
 ```
 Digital-arrest-detector/
-├── app.py                  # Main Streamlit UI
-├── train_text.py           # Script to (re)train the text scam model
-├── models/                 # ML model files — see models/README.md
-├── data/                   # Training dataset (sms_spam.csv)
+├── backend/                  # FastAPI Application
+│   ├── main.py               # API entrypoint & static serving
+│   ├── schemas.py            # Pydantic schemas
+│   ├── core/
+│   │   ├── detector.py       # Text scam & keyword detection
+│   │   ├── transcriber.py    # Vosk audio transcription
+│   │   ├── deepfake.py       # OpenCV & Keras video classification
+│   │   └── models.py         # Model loading singletons
+│   └── routers/
+│       ├── text.py           # Text analysis router
+│       ├── audio.py          # Audio analysis router
+│       └── video.py          # Video analysis router
+├── frontend/                 # React SPA (Vite)
+│   ├── dist/                 # Built production bundle (ignored)
+│   ├── src/
+│   │   ├── App.jsx           # Main layout & tab router
+│   │   ├── index.css         # Light-theme design system
+│   │   ├── api/client.js     # Axios client configuration
+│   │   └── components/       # UI Components (Text, Audio, Video tabs)
+│   └── vite.config.js        # Vite config with dev-time API proxy
+├── models/                   # ML model files — see models/README.md
+├── data/                     # Training dataset (sms_spam.csv)
 ├── utils/
-│   └── rag_utils.py        # Ollama/RAG helper functions
-├── tests/                  # Unit tests (pytest)
-├── requirements.txt        # Core Streamlit app dependencies
-├── requirements-api.txt    # Optional FastAPI backend dependencies
+│   └── rag_utils.py          # Ollama/RAG helper functions
+├── tests/                    # Unit tests (pytest)
+├── app_streamlit.py          # Stale/Legacy Streamlit UI backup
+├── requirements.txt          # Core ML/processing dependencies
+├── requirements-api.txt      # FastAPI backend dependencies
 ├── LICENSE
 └── README.md
 ```
 
 ---
 
-## ⚙️ Installation
+## Quick Start (Development)
 
-### 1. Clone the repository
-
-```bash
-git clone https://github.com/VishvaNarkar/Digital-arrest-detector.git
-cd Digital-arrest-detector
-```
-
-### 2. Create a virtual environment
+### 1. Backend Setup
+Create a virtual environment, install dependencies, and start the FastAPI server:
 
 ```bash
-# Linux / macOS
+# 1. Create and activate venv
 python -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate       # Windows: .venv\Scripts\activate
 
-# Windows (PowerShell)
-python -m venv .venv
-.venv\Scripts\activate
-```
-
-### 3. Install dependencies
-
-```bash
+# 2. Install core + backend dependencies
 pip install -r requirements.txt
-```
+pip install -r requirements-api.txt
 
-### 4. Run the app
+# 3. Start the FastAPI API server
+uvicorn backend.main:app --reload --port 8000
+```
+*API docs will be available at [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)*
+
+### 2. Frontend Setup
+In a new terminal window, install npm dependencies and start the Vite dev server:
 
 ```bash
-streamlit run app.py
+cd frontend
+npm install
+npm run dev
 ```
+*Access the app at [http://localhost:5173](http://localhost:5173) (requests to `/api` proxy automatically to `:8000`)*
 
 ---
 
-## 🤖 Optional — LLM Reasoning with Ollama
+## Production Build & Run
 
-The app can use a locally running [Ollama](https://ollama.com) server to:
-- Provide an LLM-based risk explanation for text scam results.
-- Refine Vosk audio transcriptions for better accuracy.
+To run the entire app from a single command/port (FastAPI serving the compiled React build):
 
-If Ollama is **not running**, the app automatically falls back to
-heuristic / ML-only results — no configuration required.
+```bash
+# 1. Compile the React frontend
+cd frontend
+npm run build
+cd ..
 
-To enable it:
+# 2. Start the backend (mounts static files from frontend/dist)
+uvicorn backend.main:app --host 127.0.0.1 --port 8000
+```
+*Access the production application directly at [http://127.0.0.1:8000/](http://127.0.0.1:8000/)*
+
+---
+
+## Optional — LLM Reasoning with Ollama
+
+Enable Ollama to get detailed AI explanations for scam verdicts and transcript refinement:
 
 ```bash
 # 1. Install Ollama: https://ollama.com
-# 2. Pull the model (downloads ~2 GB)
+# 2. Pull the model (downloads ~2.2 GB)
 ollama pull phi3:mini
 
-# 3. Keep the server running in a separate terminal
+# 3. Start the Ollama server (keep running in separate terminal)
 ollama serve
+```
+*If Ollama is **offline**, FraudShield AI falls back gracefully to local ML/heuristics.*
+
+---
+
+## Running Tests
+
+```bash
+pytest tests/ -v
 ```
 
 ---
 
-## 🖥 Usage
-
-- **Text Analysis** → Paste SMS/Email/Chat text → get scam probability + keywords
-- **Audio Analysis** → Upload a call recording (WAV/MP3) → transcription + scam scoring
-- **Video Analysis** → Upload a video (MP4/AVI/MOV) → deepfake classification
-- **Sidebar Threshold Slider** → Tune the scam detection sensitivity in real time
-
----
-
-## 🔁 Retraining the Text Model
+## Retraining the Text Model
 
 ```bash
 python train_text.py
 ```
-
-This reads `data/sms_spam.csv`, trains a Logistic Regression classifier over
-TF-IDF features, and saves updated `models/text_model.pkl` and
-`models/tfidf_vectorizer.pkl`.
+This reads `data/sms_spam.csv`, trains a Logistic Regression classifier, and saves updated models to the `models/` directory.
 
 ---
 
-## 🧪 Running Tests
-
-```bash
-pip install pytest
-pytest tests/
-```
-
----
-
-## 📌 Future Roadmap
-
-- 🔲 Integrate real-time call/email blocking
-- 🔲 Advanced multi-language NLP models
-- 🔲 Deploy full-stack version (FastAPI + React/Vue)
-
----
-
-## 📜 License
+## License
 
 [MIT License](LICENSE) — free to use and modify with attribution.

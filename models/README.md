@@ -50,7 +50,7 @@ input shape and produces a scalar sigmoid output.
 - Not validated against all compression codecs; best results on uncompressed or
   lightly compressed MP4 / AVI.
 
-> **⚠️ Placeholder / Large File Warning:** If the file you have is very small
+> **Placeholder / Large File Warning:** If the file you have is very small
 > (< 1 MB), it is likely a placeholder stub. Download the real model weights
 > from the project maintainer or your training pipeline before running the app.
 

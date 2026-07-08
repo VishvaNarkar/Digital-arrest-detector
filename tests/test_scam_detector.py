@@ -140,7 +140,7 @@ def _make_stub_detect_message():
     def detect_message(text: str, threshold: float = 0.35):
         if not text:
             return {
-                "label": "✅ Likely Safe",
+                "label": "Likely Safe",
                 "ml_prob": 0.0,
                 "keyword_score": 0,
                 "sentiment": {"compound": 0.0},
@@ -164,7 +164,7 @@ def _make_stub_detect_message():
         base_combined = keyword_score * KEYWORD_MULTIPLIER
         base_combined = max(0.0, min(base_combined, 1.0))
 
-        label = "🚨 Likely Scam" if base_combined > threshold else "✅ Likely Safe"
+        label = "Likely Scam" if base_combined > threshold else "Likely Safe"
 
         return {
             "label": label,
@@ -187,7 +187,7 @@ class TestDetectMessage:
 
     def test_empty_text_returns_safe(self):
         result = detect_message("")
-        assert result["label"] == "✅ Likely Safe"
+        assert result["label"] == "Likely Safe"
         assert result["combined_prob"] == 0.0
         assert result["keywords"] == []
 
