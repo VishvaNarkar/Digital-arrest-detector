@@ -1,0 +1,8 @@
+# Optional FastAPI backend dependencies
+# These are reserved for the planned REST API (see README — Future Work).
+# Install only if you are developing the API layer:
+#   pip install -r requirements-api.txt
+
+fastapi>=0.100.0,<1.0.0
+uvicorn[standard]>=0.20.0,<1.0.0
+python-multipart>=0.0.6,<1.0.0

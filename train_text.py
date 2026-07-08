@@ -15,12 +15,32 @@ from nltk.corpus import stopwords
 
 
 def clean_text(text: str) -> str:
-    """Lowercase, remove URLs, punctuation, and normalize spaces."""
+    """Lowercase, remove URLs and punctuation, and normalize spaces.
+
+    Preserves Unicode word characters AND Unicode combining marks so that
+    multilingual content — Hindi/Gujarati script and OTP digits — is not
+    silently discarded, which would hurt both training and scam detection.
+
+    Background: Python's ``\\w`` matches Unicode letters and digits but does
+    NOT match Unicode combining marks (category Mc/Mn), such as Devanagari
+    matras (e.g. ी U+0940) or Gujarati matras (e.g. ી U+0AC0).  These
+    diacritics are glued to consonants to form vowel sounds; stripping them
+    fragments every Indic word into meaningless pieces.  The explicit block
+    ranges below add them back to the keep-set:
+
+      U+0300–U+036F  Latin combining diacritics
+      U+0900–U+097F  Devanagari (Hindi)
+      U+0A80–U+0AFF  Gujarati
+    """
     if not isinstance(text, str):
         return ""
     text = text.lower()
+    # Remove URLs
     text = re.sub(r"http\S+|www\S+", "", text)
-    text = re.sub(r"[^a-z\s]", " ", text)
+    # Keep: Unicode word chars (\w = letters/digits/_), whitespace, and
+    # Unicode combining marks for Indic scripts.
+    _KEEP = r"\w\s\u0300-\u036f\u0900-\u097f\u0a80-\u0aff"
+    text = re.sub(rf"[^{_KEEP}]", " ", text, flags=re.UNICODE)
     text = re.sub(r"\s+", " ", text).strip()
     return text
 
@@ -136,13 +156,20 @@ def train_and_save_model(data_path: Path, model_dir: Path):
 
 
 def main():
-    """Main entry point for training the spam detector."""
-    base_dir = Path("D:/Digital-arrest-detector")
-    data_path = base_dir / "data/sms_spam.csv"
+    """Main entry point for training the spam detector.
+
+    Paths are derived relative to this script file so the script is
+    portable across operating systems and CI environments.
+    """
+    base_dir = Path(__file__).resolve().parent
+    data_path = base_dir / "data" / "sms_spam.csv"
     model_dir = base_dir / "models"
 
     if not data_path.exists():
-        raise FileNotFoundError(f"Dataset not found at {data_path}")
+        raise FileNotFoundError(
+            f"Dataset not found at {data_path}\n"
+            "Make sure 'data/sms_spam.csv' exists relative to this script."
+        )
 
     train_and_save_model(data_path, model_dir)
     print("\n🎯 Training pipeline completed successfully.")

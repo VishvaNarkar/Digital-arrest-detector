@@ -6,6 +6,8 @@ import joblib
 import re
 import wave
 import json
+import tempfile
+import os
 import soundfile as sf
 import cv2
 import numpy as np
@@ -14,13 +16,15 @@ from vosk import Model, KaldiRecognizer
 from pathlib import Path
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
 import nltk
-import re
 import unicodedata
 import math
-from utils.rag_utils import is_ollama_available, rag_verify_text
-from utils.rag_utils import is_ollama_available, rag_refine_transcription
+from utils.rag_utils import is_ollama_available, rag_verify_text, rag_refine_transcription
 
-nltk.download("vader_lexicon")
+# Download NLTK data only when not already present (avoids slow startup on repeat runs)
+try:
+    nltk.data.find("sentiment/vader_lexicon.zip")
+except LookupError:
+    nltk.download("vader_lexicon", quiet=True)
 sent_analyzer = SentimentIntensityAnalyzer()
 
 # ============================
@@ -176,7 +180,7 @@ RISKY_KEYWORDS = {
 # ============================
 # Hybrid Text Scam Detection
 # ============================
-def detect_message(text: str):
+def detect_message(text: str, threshold: float = 0.35):
     """
     Hybrid detection:
       - Existing ML + keyword + sentiment scoring
@@ -260,9 +264,8 @@ def detect_message(text: str):
 
     combined_prob = max(0.0, min(combined_prob, 1.0))
 
-    # Final label threshold (tuneable)
-    THRESHOLD = 0.35
-    label = "🚨 Likely Scam" if combined_prob > THRESHOLD else "✅ Likely Safe"
+    # Final label threshold (passed in from UI slider for real-time tuning)
+    label = "🚨 Likely Scam" if combined_prob > threshold else "✅ Likely Safe"
 
     return {
         "label": label,
@@ -296,7 +299,11 @@ def categorize_scam(keywords, sentiment):
 # Speech-to-Text with Vosk
 # ============================
 def transcribe_audio(audio_file, lang="en-in"):
-    """Convert audio to text using Vosk, then optionally refine transcription with LLM (Phi3)."""
+    """Convert audio to text using Vosk, then optionally refine transcription with LLM (Phi3).
+
+    Uses a unique temporary WAV file for Vosk so that concurrent Streamlit
+    sessions do not collide on a single fixed filename.
+    """
     model_path = VOSK_BASE_PATH / f"vosk-model-small-{lang}"
     if not model_path.exists():
         st.error(f"❌ Missing Vosk model: {model_path}")
@@ -308,7 +315,7 @@ def transcribe_audio(audio_file, lang="en-in"):
         st.error(f"❌ Failed to load Vosk model: {e}")
         return ""
 
-    # read file (audio_file can be a path or a file-like object)
+    # Read the audio file (audio_file can be a path string or a file-like object)
     try:
         data, samplerate = sf.read(audio_file)
     except Exception as e:
@@ -318,14 +325,16 @@ def transcribe_audio(audio_file, lang="en-in"):
     if len(data.shape) > 1:
         data = data.mean(axis=1)  # stereo -> mono
 
-    sf.write("temp.wav", data, samplerate)
-
-    # Vosk transcription (unchanged)
+    # Write to a unique temp WAV so concurrent sessions don't overwrite each other
+    tmp_wav_fd, tmp_wav_path = tempfile.mkstemp(suffix=".wav")
+    os.close(tmp_wav_fd)  # close the OS-level fd; sf.write will open it by path
     result_text = ""
     try:
-        with wave.open("temp.wav", "rb") as wf:
+        sf.write(tmp_wav_path, data, samplerate)
+
+        with wave.open(tmp_wav_path, "rb") as wf:
             rec = KaldiRecognizer(vosk_model, wf.getframerate())
-            rec.SetWords(False)  # we only need text
+            rec.SetWords(False)  # we only need the text, not word timings
             while True:
                 chunk = wf.readframes(4000)
                 if len(chunk) == 0:
@@ -338,13 +347,12 @@ def transcribe_audio(audio_file, lang="en-in"):
     except Exception as e:
         st.warning(f"Vosk transcription failed: {e}")
         result_text = ""
-
-    # Clean up temp.wav
-    try:
-        if Path("temp.wav").exists():
-            Path("temp.wav").unlink()
-    except Exception:
-        pass
+    finally:
+        # Always clean up the temp file even if an exception occurs
+        try:
+            os.unlink(tmp_wav_path)
+        except OSError:
+            pass
 
     result_text = result_text.strip()
     if not result_text:
@@ -355,7 +363,6 @@ def transcribe_audio(audio_file, lang="en-in"):
         try:
             refine = rag_refine_transcription(result_text)
             cleaned = refine.get("cleaned_text") or result_text
-            # also expose notes if desired
             return cleaned
         except Exception:
             return result_text
@@ -366,12 +373,27 @@ def transcribe_audio(audio_file, lang="en-in"):
 # Deepfake Video Detection
 # ============================
 def detect_deepfake(video_path, sample_frames=12):
-    """Detect whether a video is likely a deepfake."""
+    """Detect whether a video is likely a deepfake.
+
+    Returns a (label, score) tuple. score is the average sigmoid probability
+    across sampled frames; > 0.5 is classified as deepfake.
+    """
     if not deepfake_model:
         return "❌ Model not loaded", 0.0
 
     cap = cv2.VideoCapture(video_path)
+
+    # Validate that the file was opened successfully
+    if not cap.isOpened():
+        return "❌ Could not open video file", 0.0
+
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+    # Guard against empty or unreadable video
+    if total_frames <= 0:
+        cap.release()
+        return "❌ No video frames found", 0.0
+
     frame_idxs = np.linspace(0, total_frames - 1, sample_frames, dtype=int)
 
     preds = []
@@ -384,7 +406,7 @@ def detect_deepfake(video_path, sample_frames=12):
         frame_resized = cv2.resize(frame_rgb, (224, 224)) / 255.0
         tensor = np.expand_dims(frame_resized, axis=0)
 
-        prob = deepfake_model.predict(tensor, verbose=0)[0][0]  # assuming binary classifier
+        prob = deepfake_model.predict(tensor, verbose=0)[0][0]  # binary sigmoid classifier
         preds.append(prob)
 
     cap.release()
@@ -668,6 +690,22 @@ st.sidebar.markdown(
 )
 
 st.sidebar.markdown("---")
+st.sidebar.markdown("### ⚙️ Detection Sensitivity")
+scam_threshold = st.sidebar.slider(
+    label="Scam score threshold",
+    min_value=0.10,
+    max_value=0.80,
+    value=0.35,
+    step=0.05,
+    help=(
+        "Messages with a combined scam score above this value are flagged as ‘Likely Scam’. "
+        "Lower values catch more scams but may increase false positives; "
+        "higher values reduce false positives but may miss borderline scams."
+    ),
+    key="scam_threshold_slider",
+)
+
+st.sidebar.markdown("---")
 st.sidebar.info("""
 **How it works:**
 1. Select input type (Text, Audio, Video)
@@ -704,7 +742,7 @@ with tab1:
     if st.button("Analyze Text", key="analyze_text"):
         if user_text.strip():
             with st.spinner("Analyzing text content..."):
-                result = detect_message(user_text)
+                result = detect_message(user_text, threshold=scam_threshold)
 
                 # Extract data safely
                 combined_prob = result.get("combined_prob", 0)
@@ -789,21 +827,28 @@ with tab2:
     lang_map = {"en-in (Indian English)": "en-in", "hi (Hindi)": "hi", "gu (Gujarati)": "gu"}
     
     if uploaded_audio and st.button("Analyze Audio", key="analyze_audio"):
-        # Save uploaded audio to a temp file for processing
+        # Write to a unique temp file so concurrent sessions don’t collide
         suffix = Path(uploaded_audio.name).suffix or ".wav"
-        temp_audio_path = f"temp_audio{suffix}"
-        with open(temp_audio_path, "wb") as f:
-            f.write(uploaded_audio.read())
-    
-        with st.spinner("Transcribing audio content..."):
-            transcription = transcribe_audio(temp_audio_path, lang=lang_map[lang_choice])
+        tmp_audio_fd, temp_audio_path = tempfile.mkstemp(suffix=suffix)
+        try:
+            with os.fdopen(tmp_audio_fd, "wb") as f:
+                f.write(uploaded_audio.read())
+
+            with st.spinner("Transcribing audio content..."):
+                transcription = transcribe_audio(temp_audio_path, lang=lang_map[lang_choice])
+        finally:
+            # Always remove the upload temp file even if transcription fails
+            try:
+                os.unlink(temp_audio_path)
+            except OSError:
+                pass
     
         if transcription:
             st.success("Audio transcribed successfully!")
             st.text_area("Transcribed Text", transcription, height=120)
     
             with st.spinner("Analyzing transcribed text..."):
-                result = detect_message(transcription)
+                result = detect_message(transcription, threshold=scam_threshold)
     
             # Safely extract results
             combined_prob = result.get("combined_prob", 0)
@@ -835,30 +880,31 @@ with tab2:
                 st.success("✅ Audio content seems safe. Always double-check unknown callers or links.")
 
             # --- RAG Section ---
-                rag = result.get("rag")
-                if rag:
-                    st.markdown("### 🧠 AI Reasoning Summary (Phi3:mini)")
-                    # If rag contains structured explanation and advice, render nicely:
-                    explanation = rag.get("explanation") or str(rag.get("raw") or "")
-                    st.write("**Explanation:**")
-                    st.info(explanation)
+            # Rendered outside the scam/safe if-else so it appears for both outcomes
+            rag = result.get("rag")
+            if rag:
+                st.markdown("### 🧠 AI Reasoning Summary (Phi3:mini)")
+                # Render structured explanation and advice from the LLM
+                explanation = rag.get("explanation") or str(rag.get("raw") or "")
+                st.write("**Explanation:**")
+                st.info(explanation)
 
-                    advice = rag.get("advice") or []
-                    if advice:
-                        st.write("**Advice:**")
-                        for a in advice:
-                            st.markdown(f"- {a}")
-                    # If rag returns explicit numeric risk_percent, show a second gauge
-                    rp = rag.get("risk_percent") or rag.get("llm_prob")
-                    if rp:
-                        try:
-                            rp_val = float(rp) if not isinstance(rp, str) else float(rp)
-                            rp_pct = int(rp_val*100) if rp_val <= 1 else int(rp_val)
-                            st.write(f"**LLM risk estimate:** {rp_pct}%")
-                        except Exception:
-                            pass
-                else:
-                    st.info("LLM (Ollama) not available or RAG skipped. Using heuristic/ML results.")
+                advice = rag.get("advice") or []
+                if advice:
+                    st.write("**Advice:**")
+                    for a in advice:
+                        st.markdown(f"- {a}")
+                # If rag returns a numeric risk estimate, surface it
+                rp = rag.get("risk_percent") or rag.get("llm_prob")
+                if rp:
+                    try:
+                        rp_val = float(rp) if not isinstance(rp, str) else float(rp)
+                        rp_pct = int(rp_val * 100) if rp_val <= 1 else int(rp_val)
+                        st.write(f"**LLM risk estimate:** {rp_pct}%")
+                    except Exception:
+                        pass
+            else:
+                st.info("LLM (Ollama) not available or RAG skipped. Using heuristic/ML results.")
     
             # Display keywords visually
             keywords = result.get("keywords", []) if isinstance(result, dict) else []
@@ -883,11 +929,21 @@ with tab3:
     st.markdown('</div>', unsafe_allow_html=True)
     
     if uploaded_video and st.button("Analyze Video", key="analyze_video"):
-        with open("temp_video.mp4", "wb") as f:
-            f.write(uploaded_video.read())
-            
-        with st.spinner("Analyzing video for deepfake indicators..."):
-            label, score = detect_deepfake("temp_video.mp4")
+        # Use the original file's extension so OpenCV can pick the right codec
+        video_suffix = Path(uploaded_video.name).suffix or ".mp4"
+        tmp_video_fd, temp_video_path = tempfile.mkstemp(suffix=video_suffix)
+        try:
+            with os.fdopen(tmp_video_fd, "wb") as f:
+                f.write(uploaded_video.read())
+
+            with st.spinner("Analyzing video for deepfake indicators..."):
+                label, score = detect_deepfake(temp_video_path)
+        finally:
+            # Always remove the temp video file after analysis
+            try:
+                os.unlink(temp_video_path)
+            except OSError:
+                pass
             
         # Display results
         percent = f"{score*100:.1f}"

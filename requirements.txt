@@ -1,14 +1,18 @@
-streamlit
-joblib
-numpy
-pandas
-scikit-learn
-tensorflow
-opencv-python
-soundfile
-vosk
-nltk
-requests
-python-multipart
-uvicorn
-fastapi
+# Core Streamlit app dependencies
+# Pinned to known-good compatible ranges to prevent silent breakage.
+# Run: pip install -r requirements.txt
+
+streamlit>=1.36.0,<2.0.0
+joblib>=1.1.0,<2.0.0
+numpy>=1.22.0,<3.0.0
+pandas>=1.3.0,<3.0.0
+scikit-learn>=1.0.0,<2.0.0
+opencv-python-headless>=4.5.0,<5.0.0
+soundfile>=0.10.0,<1.0.0
+vosk>=0.3.30
+nltk>=3.7.0,<4.0.0
+requests>=2.25.0,<3.0.0
+tensorflow>=2.15.0,<3.0.0
+
+# Optional: install separately for LLM reasoning support
+# See models/README.md for Ollama setup instructions
