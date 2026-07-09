@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 # Ollama local endpoint (default)
 OLLAMA_API = "http://localhost:11434/api/generate"
-DEFAULT_MODEL = "phi3:mini"
+DEFAULT_MODEL = "llama3.1:8b"
 
 # Basic health check for local Ollama instance
 def is_ollama_available(timeout: float = 2.0) -> bool:
@@ -62,6 +62,96 @@ def query_ollama(prompt: str,
 
 # ---------- Prompting helpers ----------
 
+_RAG_CACHE = None
+
+def _get_rag_entries() -> list:
+    global _RAG_CACHE
+    if _RAG_CACHE is not None:
+        return _RAG_CACHE
+
+    _RAG_CACHE = []
+    base_dir = Path(__file__).resolve().parent.parent
+    rag_dir = base_dir / "dataset" / "rag"
+
+    if not rag_dir.exists():
+        return []
+
+    # Helper to add entries
+    def add_from_file(filename, keys_to_index):
+        filepath = rag_dir / filename
+        if filepath.exists():
+            try:
+                with open(filepath, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if isinstance(data, list):
+                        for item in data:
+                            index_text = " ".join(str(item.get(k, "")) for k in keys_to_index)
+                            rep_lines = []
+                            for k, v in item.items():
+                                if isinstance(v, list):
+                                    v_str = ", ".join(v)
+                                else:
+                                    v_str = str(v)
+                                rep_lines.append(f"{k.replace('_', ' ').capitalize()}: {v_str}")
+                            rep = "\n".join(rep_lines)
+                            
+                            _RAG_CACHE.append({
+                                "file": filename,
+                                "index_text": index_text.lower(),
+                                "representation": rep
+                            })
+            except Exception as e:
+                logger.error(f"Failed to load RAG file {filename}: {e}")
+
+    add_from_file("scam_knowledge.json", ["title", "description", "warning_signs", "recommended_action"])
+    add_from_file("prevention_tips.json", ["title", "tips"])
+    add_from_file("indian_laws.json", ["act_section", "title", "description"])
+    add_from_file("police_guidelines.json", ["authority", "guideline"])
+    add_from_file("fraud_patterns.json", ["pattern_name", "warning_signs", "prevention"])
+
+    return _RAG_CACHE
+
+def retrieve_rag_context(text: str, top_n: int = 3) -> str:
+    """Retrieve top N relevant RAG documents based on keyword overlap."""
+    from pathlib import Path
+    entries = _get_rag_entries()
+    if not entries:
+        return "No local RAG context available."
+
+    # Tokenize input text
+    query_tokens = set(w.lower().strip(".,;:!?()") for w in text.split())
+    query_tokens = {w for w in query_tokens if len(w) >= 3}
+
+    scored_entries = []
+    for entry in entries:
+        idx_text = entry["index_text"]
+        score = 0
+        for token in query_tokens:
+            if token in idx_text:
+                score += 1
+                if idx_text.startswith(token) or token in idx_text[:30]:
+                    score += 2
+        scored_entries.append((score, entry))
+
+    scored_entries.sort(key=lambda x: x[0], reverse=True)
+
+    results = []
+    for score, entry in scored_entries:
+        if score > 0 and len(results) < top_n:
+            results.append(entry["representation"])
+
+    # Fallback if no overlap matches
+    if not results:
+        for entry in entries:
+            if entry["file"] in ["prevention_tips.json", "police_guidelines.json"] and len(results) < top_n:
+                results.append(entry["representation"])
+
+    context_str = ""
+    for i, res in enumerate(results, 1):
+        context_str += f"\n--- Context Document {i} ---\n{res}\n"
+    return context_str
+
+
 def rag_verify_text(text: str,
                     ml_prob: float,
                     keywords: list,
@@ -69,30 +159,45 @@ def rag_verify_text(text: str,
                     model: str = DEFAULT_MODEL) -> Dict:
     """
     Send structured prompt to LLM to get a verification + explanation.
+    Retrieves local RAG documents to supply context for the LLM.
     Returns dict with keys:
         - llm_prob (0..1)
         - verdict (Likely Scam / Likely Safe)
         - explanation (str)
         - raw (original response)
     """
+    from pathlib import Path
+    
+    # Retrieve local RAG context
+    rag_context = retrieve_rag_context(text)
+    
     # Compose a clear instruction for model
     keywords_str = ", ".join(keywords) if keywords else "None"
     prompt = f"""
-You are FraudShield Assistant. Given the following data, decide if the message is a scam and explain concisely.
+You are FraudShield Assistant, a specialized AI cybersecurity agent. Analyze the following message for digital arrest threats, courier parcel fraud, utility bill scams, and credential phishing.
 
-Message:
+Message to analyze:
 \"\"\"{text}\"\"\"
 
-Metadata:
+Relevant Reference Knowledge (RAG Context):
+\"\"\"{rag_context}\"\"\"
+
+Metadata from heuristic and ML models:
 - ML model probability (spam/phishing): {ml_prob:.3f}
-- Detected risky keywords: {keywords_str}
+- Detected flags & keywords: {keywords_str}
 - Sentiment scores: {json.dumps(sentiment)}
 
+Analysis Guidelines:
+1. Brand Mismatch / Phishing Links: If the text mentions a brand (like HDFC, SBI, FedEx, Netflix) but the link is suspicious or doesn't match the official brand domain, it is a high-risk phishing scam.
+2. High-Stakes Threats: If the text threatens "digital arrest" by authorities (CBI, Police, Customs) or utility disconnection (power bill cutoff), it is a high-risk scam (assign 90%-100% risk).
+3. Requests for Credentials: If the text requests sensitive actions (sharing OTP, password, PIN, KYC details) via a link, it is a phishing scam (assign 90%-100% risk).
+4. Safe/Transactional Alerts: Standard bank alerts that do NOT ask you to click a link or call an unofficial number are low-risk (Likely Safe).
+
 Task:
-1) Provide a clear classification in one line: "Likely Scam" or "Likely Safe".
-2) Give a short numeric estimate of risk as a percent (0-100).
-3) Give a concise explanation (1-2 sentences) describing the main reasons (keywords, urgency, suspicious phrasing).
-4) Suggest 2 short actionable advice lines for a user.
+1. Provide a clear classification: "Likely Scam" or "Likely Safe".
+2. Give a numeric estimate of risk as a percent (0 to 100).
+3. Provide a concise explanation (1-2 sentences) explaining the key reasons (e.g. presence of brand impersonation links, urgency, or digital arrest intimidation).
+4. Suggest 2 short, direct, actionable advice lines for the user.
 
 Output JSON exactly with keys: verdict, risk_percent, explanation, advice (list of strings).
 """

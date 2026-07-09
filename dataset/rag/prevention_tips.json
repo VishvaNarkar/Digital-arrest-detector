@@ -1,0 +1,12 @@
+[
+  {
+    "title": "General Cybersecurity Safety Rules",
+    "tips": [
+      "Never share OTPs, UPI PINs, passwords, or bank credentials with anyone.",
+      "Double-check domain names before entering bank details (e.g., sbi.co.in vs sbi-kyc-verify.xyz).",
+      "Real government organizations, banks, or telecom providers (TRAI) will never ask for PINs, passwords, or video custody.",
+      "Verify delivery issues directly through the official app of the retailer or courier company.",
+      "Use two-factor authentication (2FA) for all banking, email, and social media accounts."
+    ]
+  }
+]

@@ -2,102 +2,78 @@ import CircularProgress from './CircularProgress'
 import KeywordBadges from './KeywordBadges'
 import RagSection from './RagSection'
 
-function riskColor(pct) {
-  if (pct < 40) return '#16A34A'
-  if (pct < 70) return '#D97706'
-  return '#DC2626'
+function riskColor(percent) {
+  if (percent < 40) return '#22c55e'
+  if (percent < 70) return '#f59e0b'
+  return '#ef4444'
 }
 
-/**
- * Universal result card used by all three analysis tabs.
- * @param {Object} result  — the analysis object from the API
- * @param {string} [transcription] — optional transcription text (audio tab)
- */
 export default function ResultCard({ result, transcription }) {
-  const isScam   = result.label?.includes('Scam') || result.label?.includes('Deepfake')
-  const variant  = isScam ? 'scam' : 'safe'
-  const pct      = Math.round((result.combined_prob ?? result.score ?? 0) * 100)
-  const color    = riskColor(pct)
+  const isRisky = result.label?.includes('Scam') || result.label?.includes('Deepfake')
+  const variant = isRisky ? 'risk' : 'safe'
+  const percent = Math.round((result.combined_prob ?? result.score ?? 0) * 100)
+  const color = riskColor(percent)
+  const metrics = [
+    { label: 'Model score', value: `${((result.ml_prob ?? result.score ?? 0) * 100).toFixed(1)}` },
+    { label: 'Keyword score', value: `${result.keyword_score ?? 0}` },
+    { label: 'Sentiment', value: `${(result.sentiment?.compound ?? 0).toFixed(2)}` },
+  ]
 
   return (
-    <div className={`result-card ${variant}`}>
-      {/* Header row */}
-      <div className="result-header">
-        <div className="result-icon-wrap">{isScam ? '' : ''}</div>
-        <div className="result-label-group">
-          <div className={`result-verdict ${variant}`}>{result.label}</div>
-          {result.category && (
-            <div className="result-category">{result.category}</div>
-          )}
+    <article className={`result-card ${variant}`}>
+      <div className="result-card-header">
+        <div>
+          <div className="result-kicker">Result</div>
+          <h4>{result.label}</h4>
+          {result.category && <p className="result-subtitle">{result.category}</p>}
         </div>
-        <CircularProgress percent={pct} color={color} />
+        <CircularProgress percent={percent} color={color} />
       </div>
 
-      {/* Transcription (audio tab only) */}
+      <div className="result-tags">
+        <span className={`result-tag ${variant}`}>{isRisky ? 'Review carefully' : 'Low concern'}</span>
+        <span className="result-tag neutral">{percent}% overall risk</span>
+      </div>
+
+      <section className="metric-grid">
+        {metrics.map(metric => (
+          <div className="metric-card" key={metric.label}>
+            <span>{metric.label}</span>
+            <strong>{metric.value}{metric.label === 'Model score' ? '%' : ''}</strong>
+          </div>
+        ))}
+      </section>
+
       {transcription && (
-        <div style={{ marginBottom: 16 }}>
-          <div className="keywords-title" style={{ marginBottom: 6 }}>Transcription</div>
+        <section className="stack-section">
+          <div className="section-label">Transcription</div>
           <div className="transcription-box">{transcription}</div>
-        </div>
+        </section>
       )}
 
-      {/* Video progress bar */}
       {result.percent !== undefined && result.score !== undefined && (
-        <div className="video-bar-wrap">
-          <div className="video-bar-label">
+        <section className="stack-section">
+          <div className="bar-row">
             <span>Deepfake probability</span>
-            <span>{result.percent}%</span>
+            <strong>{result.percent}%</strong>
           </div>
           <div className="video-bar-track">
-            <div
-              className="video-bar-fill"
-              style={{ width: `${result.percent}%`, background: color }}
-            />
+            <div className="video-bar-fill" style={{ width: `${result.percent}%`, background: color }} />
           </div>
-        </div>
+        </section>
       )}
 
-      {/* Meta grid (text/audio only) */}
-      {result.ml_prob !== undefined && (
-        <div className="meta-grid">
-          <div className="meta-item">
-            <div className="meta-item-label">ML Prob</div>
-            <div className="meta-item-value">{(result.ml_prob * 100).toFixed(1)}%</div>
-          </div>
-          <div className="meta-item">
-            <div className="meta-item-label">Keywords</div>
-            <div className="meta-item-value">{result.keyword_score ?? 0}</div>
-          </div>
-          <div className="meta-item">
-            <div className="meta-item-label">Sentiment</div>
-            <div className="meta-item-value">
-              {(result.sentiment?.compound ?? 0).toFixed(2)}
-            </div>
-          </div>
-        </div>
-      )}
+      <div className={`advice-banner ${variant}`}>
+        <span>{isRisky ? 'Action' : 'Note'}</span>
+        <span>
+          {isRisky
+            ? 'Verify the source through official channels before taking any action.'
+            : 'Content appears lower risk, but high-stakes decisions should still be verified independently.'}
+        </span>
+      </div>
 
-      {/* Advice banner */}
-      {result.ml_prob !== undefined && (
-        <div className={`advice-banner ${variant}`}>
-          <span>{isScam ? '' : ''}</span>
-          <span>
-            {isScam
-              ? 'Do not click suspicious links or share OTPs. Verify the sender through official channels.'
-              : 'Content appears safe. Always double-check unknown callers, senders, or links.'}
-          </span>
-        </div>
-      )}
-
-      {/* Keywords */}
-      {result.keywords?.length > 0 && (
-        <KeywordBadges keywords={result.keywords} />
-      )}
-
-      {/* RAG reasoning */}
-      {'rag' in result && (
-        <RagSection rag={result.rag} />
-      )}
-    </div>
+      {result.keywords?.length > 0 && <KeywordBadges keywords={result.keywords} />}
+      {'rag' in result && <RagSection rag={result.rag} />}
+    </article>
   )
 }

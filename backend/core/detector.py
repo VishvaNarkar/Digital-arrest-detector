@@ -55,6 +55,18 @@ def detect_message(text: str, threshold: float = 0.35) -> Dict:
             found_keywords.append(kw)
             keyword_score += weight
 
+    # URL / Phishing Link Analysis
+    max_url_risk = 0.0
+    try:
+        from backend.core.url_analyzer import extract_urls, analyze_url
+        urls = extract_urls(text)
+        for url in urls:
+            url_res = analyze_url(url, text)
+            max_url_risk = max(max_url_risk, url_res["risk_score"])
+            found_keywords.extend(url_res["flags"])
+    except Exception:
+        pass
+
     # Sentiment
     sentiment = _sent_analyzer.polarity_scores(text)
     neg_score = sentiment.get("neg", 0.0)
@@ -74,6 +86,9 @@ def detect_message(text: str, threshold: float = 0.35) -> Dict:
     # Heuristic combination
     KEYWORD_MULTIPLIER = 0.06
     base_combined = ml_prob + (keyword_score * KEYWORD_MULTIPLIER) + sentiment_boost
+    # Boost combination with URL risk
+    if max_url_risk > 0.0:
+        base_combined = max(base_combined, max_url_risk)
     base_combined = max(0.0, min(base_combined, 1.0))
 
     # Optional RAG / LLM
@@ -99,6 +114,13 @@ def detect_message(text: str, threshold: float = 0.35) -> Dict:
         combined_prob = (llm_prob * 0.55) + (base_combined * 0.45)
     else:
         combined_prob = base_combined
+
+    # Baseline Calibration:
+    # If the combined probability is below the threshold and no suspicious keywords or URLs
+    # are detected, scale it down to suppress ML intercept noise (e.g. 34% baseline).
+    if combined_prob < threshold and keyword_score == 0 and max_url_risk == 0.0:
+        combined_prob = combined_prob * 0.15
+
     combined_prob = max(0.0, min(combined_prob, 1.0))
 
     label = "Likely Scam" if combined_prob > threshold else "Likely Safe"

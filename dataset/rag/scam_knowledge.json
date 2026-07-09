@@ -1,0 +1,57 @@
+[
+  {
+    "title": "Digital Arrest Scam",
+    "description": "Scammers impersonate police, customs, CBI, ED, or TRAI officers and falsely claim the victim is under investigation for illegal activities (e.g. drug smuggling, money laundering). They order the victim to stay on a video call ('Digital Arrest') and demand money to settle the case.",
+    "warning_signs": [
+      "Demands to stay on video call (Skype/WhatsApp/Zoom)",
+      "Orders to keep camera ON and not contact family/friends",
+      "Allegations of narcotics, money laundering, or illegal parcel interception",
+      "Demands for bank transfer to 'verify' funds or clear legal charges"
+    ],
+    "recommended_action": [
+      "Disconnect the call immediately. Real police or authorities never make video calls for arrest.",
+      "Call the national cyber crime helpline at 1930.",
+      "Report the incident on the cyber crime portal: cybercrime.gov.in."
+    ]
+  },
+  {
+    "title": "Electricity Bill Scam",
+    "description": "Victims receive SMS or WhatsApp messages warning that their power connection will be cut off tonight due to unpaid dues. The message urges them to call an unofficial helpline number, where scammers trick them into installing remote access apps (e.g. AnyDesk, TeamViewer) to steal banking credentials.",
+    "warning_signs": [
+      "Urgent warnings of immediate power disconnection (usually within hours)",
+      "Directives to call personal mobile numbers instead of official state helpline numbers",
+      "Request to install remote desktop apps or click unsecured payment links"
+    ],
+    "recommended_action": [
+      "Do not call the mobile number listed in the message.",
+      "Check bill status on the official electricity distribution company portal or app.",
+      "Never install remote control or screen-sharing apps on instructions from unknown callers."
+    ]
+  },
+  {
+    "title": "FedEx / Courier Customs Hold Scam",
+    "description": "Scammers send alerts claiming a package containing illegal items (drugs, passports) was caught by Customs and is linked to the victim's Aadhaar. They transfer the call to fake officers who extort money under threat of arrest.",
+    "warning_signs": [
+      "Unsolicited calls about parcels you never ordered",
+      "Claims of illegal materials (contraband, MDMA, passports) in your package",
+      "Fake customs clearance fees or video-call interrogations"
+    ],
+    "recommended_action": [
+      "Directly contact the official customer care of FedEx/DHL using their official website, not numbers provided in SMS.",
+      "Do not pay any 'customs clearance fee' or 'investigation deposit' online."
+    ]
+  },
+  {
+    "title": "Part-Time Telegram Job Scam",
+    "description": "Victims are offered easy part-time work like liking YouTube videos, rating hotels, or sharing screenshots for small initial payouts (Rs 150-500). Once hooked, they are asked to invest larger sums in VIP schemes, which are then frozen by scammers.",
+    "warning_signs": [
+      "Unsolicited job offers on WhatsApp/Telegram promising easy money",
+      "Tasks involving liking videos or rating maps in exchange for cash",
+      "Demands to deposit money ('recharge account') to unlock higher commissions"
+    ],
+    "recommended_action": [
+      "Ignore easy task-based income offers from unknown recruiters.",
+      "Never transfer money or deposit funds to receive freelance salaries."
+    ]
+  }
+]

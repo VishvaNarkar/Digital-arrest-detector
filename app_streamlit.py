@@ -184,7 +184,7 @@ def detect_message(text: str, threshold: float = 0.35):
     """
     Hybrid detection:
       - Existing ML + keyword + sentiment scoring
-      - Then call RAG (Phi3:mini via Ollama) to get an LLM verification & explanation
+      - Then call RAG (llama3.1:8b via Ollama) to get an LLM verification & explanation
       - Combine scores (simple weighted average) and return structured dict
     """
     if not text:
@@ -771,7 +771,7 @@ with tab1:
                 # --- RAG Section ---
                 rag = result.get("rag")
                 if rag:
-                    st.markdown("### AI Reasoning Summary (Phi3:mini)")
+                    st.markdown("### AI Reasoning Summary (llama3.1:8b)")
                     # If rag contains structured explanation and advice, render nicely:
                     explanation = rag.get("explanation") or str(rag.get("raw") or "")
                     st.write("**Explanation:**")
@@ -883,7 +883,7 @@ with tab2:
             # Rendered outside the scam/safe if-else so it appears for both outcomes
             rag = result.get("rag")
             if rag:
-                st.markdown("### AI Reasoning Summary (Phi3:mini)")
+                st.markdown("### AI Reasoning Summary (llama3.1:8b)")
                 # Render structured explanation and advice from the LLM
                 explanation = rag.get("explanation") or str(rag.get("raw") or "")
                 st.write("**Explanation:**")

@@ -1,0 +1,18 @@
+[
+  {
+    "pattern_name": "Urgency and Fear Tactics",
+    "warning_signs": [
+      "Threats of jail, arrest, power cuts, or account blocking.",
+      "Extreme urgency, e.g., 'within 2 hours', 'tonight at 9:30 PM', 'do it now'."
+    ],
+    "prevention": "Do not panic. Call official support to verify."
+  },
+  {
+    "pattern_name": "Cashback or Prize Money",
+    "warning_signs": [
+      "Unsolicited rewards, lottery wins, or GPay/Paytm cashback notifications.",
+      "Instructions to scan a QR code or enter a UPI PIN to receive money."
+    ],
+    "prevention": "Remember: You never need to scan a QR code or enter a UPI PIN to receive money. PINs are only for sending money."
+  }
+]

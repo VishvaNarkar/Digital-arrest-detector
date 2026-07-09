@@ -1,0 +1,12 @@
+[
+  {
+    "authority": "National Cyber Crime Reporting Portal (MHA)",
+    "helpline": "1930",
+    "portal": "cybercrime.gov.in",
+    "guideline": "Report any cyber financial fraud within the 'Golden Hour' (first 2 hours) to maximize chances of freezing the stolen funds in the scammer's bank account."
+  },
+  {
+    "authority": "Telecom Regulatory Authority of India (TRAI)",
+    "guideline": "TRAI never initiates disconnection calls. For spam reporting, send SMS 'COMPLAINT <text>' to 1909 or use the DND 2.0 app."
+  }
+]

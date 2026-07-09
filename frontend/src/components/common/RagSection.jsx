@@ -4,11 +4,7 @@ export default function RagSection({ rag }) {
   const [open, setOpen] = useState(false)
 
   if (!rag) {
-    return (
-      <div className="alert info" style={{ marginTop: 14 }}>
-        LLM reasoning unavailable — Ollama is offline or skipped. Showing heuristic/ML results only.
-      </div>
-    )
+    return <div className="alert info spaced">LLM reasoning unavailable. Showing heuristic and ML results only.</div>
   }
 
   const explanation = rag.explanation || (typeof rag.raw === 'string' ? rag.raw : '')
@@ -21,39 +17,35 @@ export default function RagSection({ rag }) {
   }
 
   return (
-    <div className="rag-section" style={{ marginTop: 16 }}>
+    <div className="rag-section">
       <button className="rag-toggle" onClick={() => setOpen(o => !o)} aria-expanded={open}>
-        <span>AI Reasoning — Phi3:mini{rpPct != null ? ` · ${rpPct}% risk` : ''}</span>
-        <i className={`rag-toggle-icon${open ? ' open' : ''}`}>▾</i>
+        <span>AI reasoning{rpPct != null ? ` - ${rpPct}% risk` : ''}</span>
+        <i className={`rag-toggle-icon${open ? ' open' : ''}`}>v</i>
       </button>
 
       {open && (
         <div className="rag-body">
           {explanation && (
-            <>
-              <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
-                Explanation
-              </div>
+            <section className="stack-section">
+              <div className="section-label">Explanation</div>
               <div className="rag-explanation">{explanation}</div>
-            </>
+            </section>
           )}
 
           {advice.length > 0 && (
-            <>
-              <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
-                Advice
-              </div>
+            <section className="stack-section">
+              <div className="section-label">Advice</div>
               <ul className="rag-advice-list">
                 {advice.map((a, i) => (
                   <li key={i} className="rag-advice-item">{a}</li>
                 ))}
               </ul>
-            </>
+            </section>
           )}
 
           {rpPct != null && (
             <div className="rag-risk-row">
-              LLM risk estimate: <span className="rag-risk-pill">{rpPct}%</span>
+              LLM risk estimate <span className="rag-risk-pill">{rpPct}%</span>
             </div>
           )}
         </div>

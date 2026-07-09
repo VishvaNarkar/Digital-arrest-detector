@@ -3,8 +3,8 @@ export default function ShieldLogo({ size = 36 }) {
     <svg width={size} height={size} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <linearGradient id="sg" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#4F6EF7" />
-          <stop offset="100%" stopColor="#7C3AED" />
+          <stop offset="0%" stopColor="#2563EB" />
+          <stop offset="100%" stopColor="#14B8A6" />
         </linearGradient>
       </defs>
       <path

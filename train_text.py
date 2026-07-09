@@ -54,13 +54,49 @@ def train_and_save_model(data_path: Path, model_dir: Path):
     model_dir.mkdir(parents=True, exist_ok=True)
 
     # --- Load dataset ---
-    df = pd.read_csv(data_path, encoding="latin-1")
+    train_dir = data_path.parent.parent / "dataset" / "train"
+    all_records = []
 
-    # Normalize column names if necessary
-    if "text" not in df.columns and "v2" in df.columns:
-        df = df.rename(columns={"v2": "text", "v1": "label"})
+    if train_dir.exists():
+        print(f"Loading datasets from {train_dir}...")
+        for file_path in train_dir.glob("*.json"):
+            try:
+                with open(file_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if isinstance(data, list):
+                        all_records.extend(data)
+                        print(f"  Loaded {len(data)} samples from {file_path.name}")
+            except Exception as e:
+                print(f"  Warning: Failed to load {file_path.name}: {e}")
 
-    df = df.dropna(subset=["text", "label"])
+    if not all_records:
+        # Fallback to legacy csv loading if new dataset folder doesn't exist
+        print(f"Warning: No dataset found at {train_dir}. Falling back to legacy loading.")
+        df = pd.read_csv(data_path, encoding="latin-1")
+
+        # Normalize column names if necessary
+        if "text" not in df.columns and "v2" in df.columns:
+            df = df.rename(columns={"v2": "text", "v1": "label"})
+
+        df = df.dropna(subset=["text", "label"])
+
+        # Load and append modern scams overlay dataset
+        modern_scams_path = data_path.parent / "modern_scams.json"
+        if modern_scams_path.exists():
+            try:
+                with open(modern_scams_path, "r", encoding="utf-8") as f:
+                    modern_scams = json.load(f)
+                df_modern = pd.DataFrame(modern_scams)
+                if "label" not in df_modern.columns:
+                    df_modern["label"] = "spam"
+                df = pd.concat([df, df_modern], ignore_index=True)
+                print(f"Loaded {len(df_modern)} modern scam templates from {modern_scams_path.name}.")
+            except Exception as e:
+                print(f"Warning: Failed to load modern scams: {e}")
+    else:
+        df = pd.DataFrame(all_records)
+        df = df.dropna(subset=["text", "label"])
+
     df["clean_text"] = df["text"].apply(clean_text)
 
     # Convert labels to numeric
