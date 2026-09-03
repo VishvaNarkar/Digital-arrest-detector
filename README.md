@@ -1,4 +1,4 @@
-# 📞 FraudShield AI — Multi-Channel Scam & Deepfake Detector
+# FraudShield AI — Multi-Channel Scam & Deepfake Detector
 
 An AI-powered tool to **detect digital fraud, scams, and deepfakes** across multiple channels including **Text, Audio, and Video**.  
 Built for real-time prevention, alerts, and awareness against modern cyber scams.
@@ -7,7 +7,7 @@ This project features a modern **React SPA frontend** styled with a premium ligh
 
 ---
 
-## 🚀 Features
+## Features
 
 - **Text Scam Detection**
   - **NLP-based classification** (legit vs scam via Logistic Regression & TF-IDF)
@@ -27,7 +27,7 @@ This project features a modern **React SPA frontend** styled with a premium ligh
 
 ---
 
-## 🛠 Tech Stack
+## Tech Stack
 
 - **Frontend**: React (Vite, Axios, Vanilla CSS, Inter Typography)
 - **Backend**: FastAPI (Python), Uvicorn, Pydantic
@@ -37,7 +37,7 @@ This project features a modern **React SPA frontend** styled with a premium ligh
 
 ---
 
-## 📂 Project Structure
+## Project Structure
 
 ```
 FraudShield-AI/
@@ -94,7 +94,7 @@ FraudShield-AI/
 
 ---
 
-## ⚙️ Quick Start (Development)
+## Quick Start (Development)
 
 ### 1. Backend Setup
 Create a virtual environment, install dependencies, and start the FastAPI server:
@@ -125,7 +125,7 @@ npm run dev
 
 ---
 
-## 📦 Production Build & Run
+## Production Build & Run
 
 To run the entire app from a single command/port (FastAPI serving the compiled React build):
 
@@ -142,7 +142,7 @@ uvicorn backend.main:app --host 127.0.0.1 --port 8000
 
 ---
 
-## 🤖 Optional — LLM Reasoning with Ollama
+## Optional — LLM Reasoning with Ollama
 
 Enable Ollama to get detailed AI explanations for scam verdicts and transcript refinement:
 
@@ -158,7 +158,7 @@ ollama serve
 
 ---
 
-## 🧪 Running Tests
+## Running Tests
 
 ```bash
 pytest tests/ -v
@@ -166,7 +166,7 @@ pytest tests/ -v
 
 ---
 
-## 🔁 Retraining the Text Model
+## Retraining the Text Model
 
 ```bash
 python train_text.py
@@ -175,6 +175,6 @@ This reads `data/sms_spam.csv` and `data/modern_scams.json`, trains a Logistic R
 
 ---
 
-## 📜 License
+## License
 
 [MIT License](LICENSE) — free to use and modify with attribution.
